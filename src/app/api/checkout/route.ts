@@ -9,7 +9,7 @@ const PAYMENT_TITLES: Record<string, string> = {
   bacs: "銀行轉帳",
   cheque: "支票付款",
   cod: "貨到付款",
-  ry_newebpay_credit: "藍新金流 信用卡",
+  // ry_newebpay_credit (藍新金流 信用卡) is not accepted until a real gateway is integrated.
 };
 const REQUIRED = ["billing_last_name", "billing_first_name", "billing_country", "billing_address_1", "billing_city", "billing_phone", "billing_email"];
 const FIELDS = [

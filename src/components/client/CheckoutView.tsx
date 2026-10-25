@@ -7,7 +7,8 @@ const PAYMENTS = [
   { id: "bacs", title: "銀行轉帳", desc: "直接匯款至我們的銀行帳戶。請在付款備註中填入你的訂單編號，訂單款項到帳後才會出貨。" },
   { id: "cheque", title: "支票付款", desc: "請將支票寄送至商店地址。" },
   { id: "cod", title: "貨到付款", desc: "貨到時以現金付款。" },
-  { id: "ry_newebpay_credit", title: "藍新金流 信用卡", desc: "使用藍新金流信用卡付款。" },
+  // 藍新金流 (ry_newebpay_credit) is hidden until a real gateway integration is approved: choosing it
+  // would only create an unpaid order while the customer expects a card payment page.
 ];
 
 type F = { name: string; label: string; required?: boolean; type?: string; cls: string; autoComplete?: string; placeholder?: string };

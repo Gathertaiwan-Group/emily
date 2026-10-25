@@ -87,8 +87,24 @@ export async function responsiveContent(html: string): Promise<string> {
   return s;
 }
 
+/** Static Soledad post blocks saved inside page HTML (e.g. the Elementor home page) carry the
+ *  category links in whatever order MySQL returned when the page was scraped; re-sort each
+ *  <span class="cat"> the way get_the_category() orders them (term_order, then term_id). */
+async function sortCatSpans(html: string): Promise<string> {
+  if (!html.includes("penci-cat-name")) return html;
+  const { getTerms, sortCats } = await import("./data");
+  const { byId } = await getTerms();
+  return html.replace(/(<span class="cat(?: [^"]*)?">)((?:\s*<a\b[^>]*\bpenci-cat-(\d+)\b[^>]*>[\s\S]*?<\/a>)+)(\s*<\/span>)/g, (m, open, links: string, _id, close) => {
+    const parts = Array.from(links.matchAll(/\s*<a\b[^>]*\bpenci-cat-(\d+)\b[^>]*>[\s\S]*?<\/a>/g)).map((x) => ({ id: Number(x[1]), html: x[0] }));
+    const terms = parts.map((x) => byId.get(x.id));
+    if (terms.some((t) => !t)) return m;
+    const order = sortCats(terms as NonNullable<(typeof terms)[number]>[]).map((t) => t.id);
+    return open + order.map((id) => parts.find((x) => x.id === id)!.html).join("") + close;
+  });
+}
+
 /** transformContent + responsive images (server components). */
 export async function renderContent(html: string | null | undefined): Promise<string> {
   const { transformContent } = await import("./content");
-  return responsiveContent(transformContent(html));
+  return responsiveContent(await sortCatSpans(transformContent(html)));
 }

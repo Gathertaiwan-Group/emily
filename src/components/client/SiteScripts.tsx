@@ -141,6 +141,43 @@ export default function SiteScripts() {
       setTimeout(stickySidebars, 1500);
     }
 
+    // ---- Elementor entrance animations (frontend.js replacement). Elementor renders animated
+    // widgets with .elementor-invisible (visibility:hidden) and reveals them on scroll-in by adding
+    // "animated <name>" from data-settings (_animation / _animation_tablet / _animation_mobile).
+    const invisible = Array.from(document.querySelectorAll<HTMLElement>(".elementor-invisible"));
+    if (invisible.length) {
+      const reveal = (el: HTMLElement) => {
+        let s: Record<string, any> = {};
+        try {
+          s = JSON.parse(el.dataset.settings || "{}");
+        } catch {}
+        const w = window.innerWidth;
+        const pick = (k: string) => (w < 768 && s[`${k}_mobile`]) || (w < 1025 && s[`${k}_tablet`]) || s[k];
+        const name = String(pick("_animation") || pick("animation") || "");
+        const delay = Number(s._animation_delay ?? s.animation_delay ?? 0) || 0;
+        const run = () => {
+          el.classList.remove("elementor-invisible");
+          if (name && name !== "none") el.classList.add("animated", name);
+        };
+        if (delay > 0) setTimeout(run, delay);
+        else run();
+      };
+      if (!("IntersectionObserver" in window)) invisible.forEach(reveal);
+      else {
+        const io = new IntersectionObserver(
+          (entries) => {
+            for (const e of entries) {
+              if (!e.isIntersecting) continue;
+              io.unobserve(e.target);
+              reveal(e.target as HTMLElement);
+            }
+          },
+        );
+        invisible.forEach((el) => io.observe(el));
+        cleanups.push(() => io.disconnect());
+      }
+    }
+
     // ---- related posts carousel (owl replacement: paged items + dots)
     document.querySelectorAll<HTMLElement>(".penci-related-carousel").forEach((car) => {
       if (car.dataset.ready) return;

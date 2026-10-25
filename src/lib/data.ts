@@ -24,6 +24,8 @@ export type Term = {
   count: number;
   link_path: string | null;
   seo: Record<string, any>;
+  /** WordPress wp_terms.term_order (Category Order plugin); 0 for most terms. */
+  term_order?: number | null;
 };
 export type Author = { id: number; slug: string; name: string; description: string; avatar_url: string | null; link_path: string | null };
 export type PostLite = {
@@ -157,7 +159,7 @@ export const getTerms = () =>
     for (let from = 0; ; from += 1000) {
       const r = await db()
         .from("terms")
-        .select("id,taxonomy,slug,name,description,parent_id,count,link_path,seo")
+        .select("id,taxonomy,slug,name,description,parent_id,count,link_path,seo,term_order:meta->term_order")
         .order("name")
         .range(from, from + 999);
       const page = must(r, "terms") as Term[];
@@ -312,10 +314,14 @@ export async function cardsByIds(ids: number[]): Promise<PostCard[]> {
     .sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
 }
 
-/** WordPress lists a post's categories ordered by name; Soledad keeps that order. We keep the
- *  order recorded on import (class_list order) when present. */
-function sortCats(c: Term[]) {
-  return c;
+/** get_the_category() order on the old site: the Category Order plugin rewrites the term query to
+ *  ORDER BY t.term_order ASC; MySQL broke ties by term_id. (Matches the live loveccdd.com cards,
+ *  e.g. 生活◇專欄◇啟程◇心靈, and 仨人 / 想念你 — term_order 4 / 3 — after the term_order-0 ones.) */
+export function wpTermOrder(a: Term, b: Term) {
+  return (Number(a.term_order) || 0) - (Number(b.term_order) || 0) || a.id - b.id;
+}
+export function sortCats(c: Term[]) {
+  return [...c].sort(wpTermOrder);
 }
 
 export const getRecentPosts = () =>
@@ -348,10 +354,11 @@ export const getPostById = cache(async (id: number): Promise<Post | null> => {
 export async function postTerms(postId: number): Promise<Term[]> {
   const [{ byId }, r] = await Promise.all([getTerms(), db().from("post_terms").select("term_id,term_order").eq("post_id", postId)]);
   const rows = must(r, "post_terms") as { term_id: number; term_order: number }[];
-  return rows
+  const terms = rows
     .sort((a, b) => a.term_order - b.term_order || a.term_id - b.term_id)
     .map((x) => byId.get(x.term_id))
     .filter((t): t is Term => !!t);
+  return [...sortCats(terms.filter((t) => t.taxonomy === "category")), ...terms.filter((t) => t.taxonomy !== "category")];
 }
 
 export async function adjacentPosts(p: Post): Promise<{ prev: PostLite | null; next: PostLite | null }> {

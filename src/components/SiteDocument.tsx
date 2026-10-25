@@ -79,6 +79,10 @@ export default async function SiteDocument({ path, search = "", count = 0, child
           <link key={href} rel="stylesheet" href={href} media="all" />
         ))}
         <link rel="stylesheet" href="/wp/wp-content/plugins/woocommerce/assets/css/woocommerce-smallscreen.css" media="only screen and (max-width: 768px)" />
+        {/* Without JS the Elementor entrance-animation reveal never runs: keep those widgets visible. */}
+        <noscript>
+          <style>{`.elementor-invisible{visibility:visible!important}`}</style>
+        </noscript>
         <script dangerouslySetInnerHTML={{ __html: `window.__EMILY__=${cfg};` }} />
         {sc.pixel ? <script dangerouslySetInnerHTML={{ __html: pixelJs(sc.pixel) }} /> : null}
       </head>
