@@ -1,14 +1,12 @@
-import "./globals.css";
-import { headers } from "next/headers";
+import "server-only";
 import { bodyClass, resolveRoute } from "@/lib/route";
-import { cartCount } from "@/lib/cart";
 import { env } from "@/lib/env";
 import { siteConfig } from "@/lib/data";
 import { publishDueThrottled } from "@/lib/cms/posts";
-import { Footer, Header, OffCanvas } from "@/components/Shell";
-import SiteScripts from "@/components/client/SiteScripts";
-import { MiniCart } from "@/components/client/CartView";
-import { MiniCartMount } from "@/components/client/MiniCartMount";
+import { Footer, Header, OffCanvas } from "./Shell";
+import SiteScripts from "./client/SiteScripts";
+import { MiniCart } from "./client/CartView";
+import { MiniCartMount } from "./client/MiniCartMount";
 
 const CSS = [
   "/wp/wp-includes/css/dist/block-library/style.min.css",
@@ -55,21 +53,15 @@ function decodeURIComponentSafe(s: string) {
   }
 }
 
-export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  const h = await headers();
-  const path = h.get("x-pathname") ?? "/";
-  const search = h.get("x-search") ?? "";
-  if (path === "/admin" || path.startsWith("/admin/")) {
-    return (
-      <html lang="zh-TW">
-        <body className="adm-body">{children}</body>
-      </html>
-    );
-  }
+/**
+ * The storefront document (<html>/<body> + theme CSS, header, footer). Rendered by the cached (ISR)
+ * root layout app/[[...slug]] and by the uncached app/dyn__ tree (query strings, cart, checkout, account).
+ * The cart count starts at 0 in cached HTML; MiniCart fetches /api/cart and fills it in.
+ */
+export default async function SiteDocument({ path, search = "", count = 0, children }: { path: string; search?: string; count?: number; children: React.ReactNode }) {
   publishDueThrottled();
   const sc = await siteConfig();
   const r = await resolveRoute(path, search);
-  const count = await cartCount().catch(() => 0);
   const pageId = r.kind === "home" || r.kind === "page" ? r.post.id : null;
   const cfg = JSON.stringify({ url: env.supabaseUrl(), anon: env.anonKey() }).replace(/</g, "\\u003c");
   return (

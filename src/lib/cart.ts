@@ -2,6 +2,7 @@ import "server-only";
 import { createHash, randomBytes } from "crypto";
 import { cookies } from "next/headers";
 import { db } from "./db";
+import { urlAtLeast } from "./img";
 import { activePrice, getAllProducts, getQtyRules, mediaByIds, rulesForProduct, unitPriceForQty, type ProductFull, type Variation } from "./data";
 
 export const CART_COOKIE = "emily_cart";
@@ -183,7 +184,7 @@ export async function viewCart(): Promise<CartView> {
       variation_id: r.variation_id,
       name: p.name,
       link: p.link_path,
-      image: (v?.image_id ? varImgs.get(v.image_id)?.public_url : null) ?? p.image?.public_url ?? null,
+      image: thumb(v?.image_id ? varImgs.get(v.image_id) : null) ?? thumb(p.image) ?? null,
       quantity: r.quantity,
       regular_unit: regular,
       unit_price: unit,
@@ -235,4 +236,9 @@ export async function cartCount(): Promise<number> {
   if (!cart) return 0;
   const r = await db().from("cart_items").select("quantity").eq("cart_id", cart.id);
   return (r.data ?? []).reduce((s: number, x: any) => s + x.quantity, 0);
+}
+
+/** Cart thumbnails render at ≤300px: use the 480 variant instead of the full-size file. */
+function thumb(m: { public_url: string; width: number | null; height: number | null; variants?: { w: number; h: number; path: string }[] | null } | null | undefined) {
+  return m ? urlAtLeast(m, 480) : null;
 }

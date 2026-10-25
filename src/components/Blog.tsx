@@ -1,3 +1,4 @@
+import { imgProps } from "@/lib/img";
 import { getCategoryTree, getRecentPosts, type PostCard, type Term } from "@/lib/data";
 import { isoLocal, stripTags, ymd } from "@/lib/format";
 import { SOCIAL } from "@/lib/site";
@@ -103,13 +104,9 @@ export function MasonryItem({ p }: { p: PostCard }) {
             <span className="penci-isotope-padding" style={{ paddingBottom: `${ratio ?? 66.6}%` }}></span>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              width={585}
-              height={ratio ? Math.round((585 * ratio) / 100) : 390}
-              src={m.public_url}
+              {...imgProps(m, { sizes: "(max-width: 767px) 100vw, 585px", width: 585, height: ratio ? Math.round((585 * ratio) / 100) : 390 })}
               className="attachment-penci-masonry-thumb size-penci-masonry-thumb wp-post-image"
               alt={m.alt_text || ""}
-              decoding="async"
-              loading="lazy"
             />
           </a>
         </div>

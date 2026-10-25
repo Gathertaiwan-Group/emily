@@ -57,7 +57,7 @@ export function MediaModal({ multiple = false, type = "image", onPick, onClose }
               <button type="button" key={m.id} className={`item ${sel.some((s) => s.id === m.id) ? "sel" : ""}`} onClick={() => toggle(m)} title={m.title}>
                 {m.mime_type.startsWith("image/") ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={m.public_url} alt="" loading="lazy" />
+                  <img src={(m as PickedMedia & { thumb_url?: string }).thumb_url ?? m.public_url} alt="" loading="lazy" decoding="async" />
                 ) : (
                   <span className="ph">{m.mime_type}</span>
                 )}

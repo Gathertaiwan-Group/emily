@@ -14,7 +14,7 @@ type P = {
   stock_status: string;
   sku: string | null;
   short_description: string;
-  image: { url: string } | null;
+  image: { url: string; thumb?: string } | null;
   cats: { name: string; link: string | null }[];
 };
 
@@ -92,7 +92,7 @@ export function WishlistView() {
               <td className="product-thumbnail">
                 {p.image && (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={p.image.url} width={80} height={80} alt="" />
+                  <img src={p.image.thumb ?? p.image.url} width={80} height={80} alt="" loading="lazy" decoding="async" />
                 )}
               </td>
               <td className="product-name">
@@ -148,7 +148,7 @@ export function CompareView() {
                 <br />
                 {p.image && (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={p.image.url} width={160} height={160} alt="" />
+                  <img src={p.image.thumb ?? p.image.url} width={160} height={160} alt="" loading="lazy" decoding="async" />
                 )}
                 <h4>
                   <a href={encPath(p.link)}>{p.name}</a>

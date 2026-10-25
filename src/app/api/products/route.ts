@@ -1,3 +1,4 @@
+import { srcSetOf, urlAtLeast } from "@/lib/img";
 import { NextResponse } from "next/server";
 import { getAllProducts, getQtyRules, isOnSale, rulesForProduct, variationForm } from "@/lib/data";
 
@@ -31,8 +32,8 @@ export async function GET(req: Request) {
         stock_quantity: p.stock_quantity,
         sku: p.sku,
         short_description: p.short_description,
-        image: p.image ? { url: p.image.public_url, w: p.image.width, h: p.image.height, alt: p.image.alt_text } : null,
-        gallery: p.gallery.map((m) => ({ url: m.public_url, w: m.width, h: m.height, alt: m.alt_text })),
+        image: p.image ? { url: p.image.public_url, thumb: urlAtLeast(p.image, 480), srcset: srcSetOf(p.image) ?? null, w: p.image.width, h: p.image.height, alt: p.image.alt_text } : null,
+        gallery: p.gallery.map((m) => ({ url: m.public_url, thumb: urlAtLeast(m, 480), srcset: srcSetOf(m) ?? null, w: m.width, h: m.height, alt: m.alt_text })),
         cats: p.cats.map((c) => ({ name: c.name, link: c.link_path })),
         tags: p.tags.map((c) => ({ name: c.name, link: c.link_path })),
         sold_individually: p.sold_individually,

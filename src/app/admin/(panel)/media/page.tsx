@@ -33,7 +33,7 @@ export default async function MediaPage({ searchParams }: { searchParams: SP }) 
           <a key={m.id} className="item" href={`/admin/media/${m.id}`} title={m.title}>
             {m.media_type === "image" ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={m.public_url} alt={m.alt_text} loading="lazy" />
+              <img src={m.thumb_url ?? m.public_url} alt={m.alt_text} loading="lazy" decoding="async" />
             ) : (
               <span className="ph">{m.mime_type}</span>
             )}

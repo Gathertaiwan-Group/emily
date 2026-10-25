@@ -12,6 +12,7 @@ export type Media = {
   alt_text: string;
   title: string;
   mime_type: string;
+  variants?: { w: number; h: number; path: string }[] | null;
 };
 export type Term = {
   id: number;
@@ -241,7 +242,7 @@ export async function mediaByIds(ids: (number | null | undefined)[]): Promise<Ma
   const uniq = [...new Set(ids.filter((x): x is number => typeof x === "number"))];
   if (!uniq.length) return new Map();
   const rows = must(
-    await db().from("media").select("id,public_url,width,height,alt_text,title,mime_type").in("id", uniq),
+    await db().from("media").select("id,public_url,width,height,alt_text,title,mime_type,variants").in("id", uniq),
     "media",
   ) as Media[];
   return new Map(rows.map((m) => [m.id, m]));

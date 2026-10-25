@@ -1,3 +1,4 @@
+import { revalidatePath } from "next/cache";
 import "server-only";
 import { db } from "@/lib/db";
 import { invalidateMemo } from "@/lib/data";
@@ -51,9 +52,19 @@ export async function audit(actor: Actor, action: string, entityType: string, en
   if (error) console.error("[audit]", error.message);
 }
 
-/** After a write: clear this instance's storefront memo so the change shows immediately here. */
+/**
+ * After a write: clear this instance's storefront memo and mark every cached (ISR) storefront page
+ * stale so the change shows on the next visit. revalidatePath throws when called during a render
+ * (e.g. the scheduled-post publisher); those pages then refresh within the ISR window (300 s).
+ */
 export function changed(prefix?: string) {
   invalidateMemo(prefix);
+  try {
+    revalidatePath("/[[...slug]]", "layout");
+    revalidatePath("/", "layout");
+  } catch {
+    /* not in a server action / route handler */
+  }
 }
 
 /** WordPress-style slug: keep unicode letters, lowercase, dashes; stored percent-encoded (lowercase hex) like WP. */

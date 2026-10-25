@@ -3,6 +3,8 @@ import { createHash } from "node:crypto";
 import sharp from "sharp";
 import { db } from "@/lib/db";
 import { STORAGE_BASE } from "@/lib/site";
+import { env } from "@/lib/env";
+import { urlAtLeast } from "@/lib/img";
 import { CmsError, audit, ilikeTerm, must, type Actor } from "./core";
 
 export const BUCKET = "site-emily";
@@ -24,19 +26,23 @@ export type MediaRow = {
   old_file: string;
   date: string | null;
   parent_post_id: number | null;
+  variants?: { w: number; h: number; path: string }[] | null;
+  /** 480px variant (or the original) for admin thumbnails */
+  thumb_url?: string;
 };
 
 export async function listMedia(opts: { search?: string; type?: string; page?: number; per?: number } = {}) {
   const per = Math.min(Math.max(opts.per ?? 40, 1), 200);
   const page = Math.max(opts.page ?? 1, 1);
-  let q = db().from("media").select("id,title,caption,description,alt_text,mime_type,media_type,width,height,filesize,storage_path,public_url,old_file,date,parent_post_id", { count: "exact" });
+  let q = db().from("media").select("id,title,caption,description,alt_text,mime_type,media_type,width,height,filesize,storage_path,public_url,old_file,date,parent_post_id,variants", { count: "exact" });
   if (opts.type && opts.type !== "all") q = q.eq("media_type", opts.type);
   if (opts.search) {
     const t = ilikeTerm(opts.search);
     q = q.or(`title.ilike.%${t}%,old_file.ilike.%${t}%,alt_text.ilike.%${t}%`);
   }
   const r = await q.order("date", { ascending: false, nullsFirst: false }).order("id", { ascending: false }).range((page - 1) * per, page * per - 1);
-  return { rows: must(r, "media") as MediaRow[], total: r.count ?? 0, page, per };
+  const rows = (must(r, "media") as MediaRow[]).map((m) => ({ ...m, thumb_url: urlAtLeast(m, 480) }));
+  return { rows, total: r.count ?? 0, page, per };
 }
 
 export async function getMedia(id: number) {
@@ -101,7 +107,8 @@ export async function uploadMedia(actor: Actor, file: { name: string; type: stri
   }
 
   // identical source already stored → reuse its file
-  const dup = must(await db().from("media").select("storage_path,public_url,mime_type,width,height,filesize").eq("sha1", sha1).limit(1), "media") as any[];
+  const dup = must(await db().from("media").select("storage_path,public_url,mime_type,width,height,filesize,variants").eq("sha1", sha1).limit(1), "media") as any[];
+  let variants: { w: number; h: number; path: string }[] = dup[0]?.variants ?? [];
   let storagePath: string;
   let publicUrl: string;
   if (dup[0]) {
@@ -126,6 +133,7 @@ export async function uploadMedia(actor: Actor, file: { name: string; type: stri
     }
     if (!storagePath) throw new CmsError("無法產生不重複的檔名", 500);
     publicUrl = `${STORAGE_BASE}/${storagePath.split("/").map(encodeURIComponent).join("/")}`;
+    if (converted) variants = await makeVariants(file.data, storagePath, width);
   }
 
   const row = {
@@ -149,11 +157,35 @@ export async function uploadMedia(actor: Actor, file: { name: string; type: stri
     public_url: publicUrl,
     sha1,
     converted,
+    variants,
     metadata_source: "upload",
   };
   const m = must(await db().from("media").insert(row).select("*").single(), "media") as MediaRow;
   await audit(actor, "media.upload", "media", m.id, null, { title, storage_path: storagePath, mime_type: outMime, bytes: row.filesize, reused_file: !!dup[0] });
   return m;
+}
+
+export const VARIANT_WIDTHS = [480, 960, 1440];
+
+/**
+ * Responsive WebP variants (480/960/1440, quality 75, never upscaled) of a converted image, stored at
+ * v/<w>/<storage_path> with a one-year immutable cache header. Returns the media.variants value.
+ */
+export async function makeVariants(source: Buffer, storagePath: string, width: number | null) {
+  const out: { w: number; h: number; path: string }[] = [];
+  if (!width) return out;
+  for (const w of VARIANT_WIDTHS.filter((x) => x < width)) {
+    const { data, info } = await sharp(source, { failOn: "none" }).rotate().resize({ width: w, withoutEnlargement: true }).webp({ quality: 75 }).toBuffer({ resolveWithObject: true });
+    const path = `v/${w}/${storagePath.replace(/\.[^.]+$/, "")}.webp`;
+    const res = await fetch(`${env.supabaseUrl()}/storage/v1/object/${BUCKET}/${path.split("/").map(encodeURIComponent).join("/")}`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${env.serviceKey()}`, apikey: env.serviceKey(), "Content-Type": "image/webp", "x-upsert": "true", "cache-control": "public, max-age=31536000, immutable" },
+      body: new Uint8Array(data),
+    });
+    if (!res.ok) throw new CmsError(`縮圖上傳失敗：HTTP ${res.status}`, 500);
+    out.push({ w: info.width, h: info.height, path });
+  }
+  return out;
 }
 
 function blockedHost(u: URL) {

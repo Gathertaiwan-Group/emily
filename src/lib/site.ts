@@ -16,7 +16,7 @@ export const SLOGAN_LINES = [
 ];
 export const STORAGE_BASE = "https://ozwftlkgqmewtadypsfi.supabase.co/storage/v1/object/public/site-emily";
 export const LOGO_URL = `${STORAGE_BASE}/uploads/2022/03/logo-4.webp`;
-export const FAVICON_URL = `${STORAGE_BASE}/uploads/2022/03/1-4532e1ad.webp`;
+export const FAVICON_URL = `${STORAGE_BASE}/v/480/uploads/2022/03/1-4532e1ad.webp`; // 480px variant of the 871px icon
 export const SOCIAL = {
   facebook: "https://www.facebook.com/ccddandme",
   instagram:

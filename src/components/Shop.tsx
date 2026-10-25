@@ -1,5 +1,8 @@
 import { getAllProducts, getQtyRules, getTerms, isOnSale, rulesForProduct, variationForm, type ProductFull, type Term } from "@/lib/data";
-import { transformContent } from "@/lib/content";
+import { renderContent } from "@/lib/content-img";
+import { imgProps, urlAtLeast } from "@/lib/img";
+
+const THUMB_SIZES = "(max-width: 480px) 50vw, 300px";
 import { priceHtml } from "@/lib/format";
 import { PRODUCTS_PER_PAGE_DEFAULT, SITE_URL } from "@/lib/site";
 import { FollowUs, Sidebar } from "./Blog";
@@ -53,7 +56,7 @@ export function ProductLoopItem({ p, first }: { p: ProductFull; first?: boolean 
               <a className="penci-main-loop-image" href={url}>
                 {img && (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img width={300} height={300} src={img.public_url} className="attachment-woocommerce_thumbnail size-woocommerce_thumbnail" alt={p.name} decoding="async" loading="lazy" />
+                  <img {...imgProps(img, { sizes: THUMB_SIZES, width: 300, height: 300 })} className="attachment-woocommerce_thumbnail size-woocommerce_thumbnail" alt={p.name} />
                 )}
               </a>
               <div className="quick-shop-wrapper">
@@ -67,7 +70,7 @@ export function ProductLoopItem({ p, first }: { p: ProductFull; first?: boolean 
                 <div className="hover-img">
                   <a href={url}>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img width={300} height={300} src={hover.public_url} className="attachment-woocommerce_thumbnail size-woocommerce_thumbnail" alt="" decoding="async" loading="lazy" />
+                    <img {...imgProps(hover, { sizes: THUMB_SIZES, width: 300, height: 300 })} className="attachment-woocommerce_thumbnail size-woocommerce_thumbnail" alt="" />
                   </a>
                 </div>
               )}
@@ -155,7 +158,7 @@ function PriceFilter({ id, min, max, cur, action, h = "h4" }: { id: string; min:
 }
 
 export async function ShopArchive({ term, page, search, title }: { term?: Term; page: number; search: URLSearchParams; title: string }) {
-  const [all, { all: terms }] = await Promise.all([getAllProducts(), getTerms()]);
+  const [all, { all: terms }, termDesc] = await Promise.all([getAllProducts(), getTerms(), term?.description ? renderContent(term.description) : Promise.resolve("")]);
   const visible = all.filter((p) => p.catalog_visibility === "visible" || p.catalog_visibility === "catalog");
   let list = visible;
   if (term) list = list.filter((p) => (term.taxonomy === "product_cat" ? p.cats : p.tags).some((c) => c.id === term.id || c.parent_id === term.id));
@@ -216,7 +219,7 @@ export async function ShopArchive({ term, page, search, title }: { term?: Term; 
               </aside>
             </div>
             <div className="page-description">
-              {term?.description ? <div dangerouslySetInnerHTML={{ __html: transformContent(term.description) }} /> : <p></p>}
+              {termDesc ? <div dangerouslySetInnerHTML={{ __html: termDesc }} /> : <p></p>}
             </div>
             <div className="penci-woo-before-main-content">
               <div className="penci-woo-before-main-inner-content content-left">
@@ -354,7 +357,7 @@ export async function ShopArchive({ term, page, search, title }: { term?: Term; 
                       <a href={href(p.link_path)}>
                         {p.image && (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img width={300} height={300} src={p.image.public_url} className="attachment-woocommerce_thumbnail size-woocommerce_thumbnail" alt={p.name} loading="lazy" />
+                          <img {...imgProps(p.image, { sizes: "80px", width: 300, height: 300 })} className="attachment-woocommerce_thumbnail size-woocommerce_thumbnail" alt={p.name} />
                         )}{" "}
                         <span className="product-title">{p.name}</span>
                       </a>
@@ -402,7 +405,7 @@ function ShopIcons() {
 }
 
 export async function ProductSingle({ p }: { p: ProductFull }) {
-  const [all, rules] = await Promise.all([getAllProducts(), getQtyRules()]);
+  const [all, rules, shortHtml, descHtml] = await Promise.all([getAllProducts(), getQtyRules(), renderContent(p.short_description), renderContent(p.description)]);
   const others = all.filter((x) => x.id !== p.id && x.catalog_visibility !== "hidden");
   const idx = all.findIndex((x) => x.id === p.id);
   const prev = all.slice(0, idx).reverse().find((x) => x.catalog_visibility !== "hidden") ?? others[0];
@@ -456,7 +459,7 @@ export async function ProductSingle({ p }: { p: ProductFull }) {
                             <a href={href(prev.link_path)}>
                               {prev.image && (
                                 // eslint-disable-next-line @next/next/no-img-element
-                                <img src={prev.image.public_url} width={100} height={100} alt="" loading="lazy" />
+                                <img {...imgProps(prev.image, { sizes: "100px", width: 100, height: 100 })} alt="" />
                               )}
                             </a>
                           </div>
@@ -502,10 +505,10 @@ export async function ProductSingle({ p }: { p: ProductFull }) {
                     )}
                     {images.map((m, i) => (
                       <figure key={m.id} data-slide_item={i} data-attr_id={m.id} className={`splide__slide splide__slide-${m.id} woocommerce-product-gallery__wrapper`} style={i > 0 ? { marginTop: 10 } : undefined}>
-                        <div data-thumb={m.public_url} data-thumb-alt={m.alt_text} className="woocommerce-product-gallery__image">
+                        <div data-thumb={urlAtLeast(m, 480)} data-thumb-alt={m.alt_text} className="woocommerce-product-gallery__image">
                           <a href={m.public_url} data-pswp-item data-pswp-width={m.width ?? 1200} data-pswp-height={m.height ?? 1200}>
                             {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img width={600} height={m.width && m.height ? Math.round((600 * m.height) / m.width) : 600} src={m.public_url} className={i === 0 ? "wp-post-image" : ""} alt={m.alt_text} title={m.title} decoding="async" fetchPriority={i === 0 ? "high" : undefined} />
+                            <img {...imgProps(m, { sizes: "(max-width: 768px) 100vw, 600px", width: 600, priority: i === 0 })} className={i === 0 ? "wp-post-image" : ""} alt={m.alt_text} title={m.title} />
                           </a>
                         </div>
                       </figure>
@@ -518,7 +521,7 @@ export async function ProductSingle({ p }: { p: ProductFull }) {
                     <p className="price" data-price-box>
                       <PriceHtml p={p} />
                     </p>
-                    {p.short_description && <div className="woocommerce-product-details__short-description" dangerouslySetInnerHTML={{ __html: transformContent(p.short_description) }} />}
+                    {p.short_description && <div className="woocommerce-product-details__short-description" dangerouslySetInnerHTML={{ __html: shortHtml }} />}
                     {stockText && <p className={`stock ${p.stock_status === "instock" ? "in-stock" : p.stock_status === "onbackorder" ? "available-on-backorder" : "out-of-stock"}`}>{stockText}</p>}
                     {myRules.length > 0 && (
                       <div className="penci-qty-discount">
@@ -622,7 +625,7 @@ export async function ProductSingle({ p }: { p: ProductFull }) {
                         id="tab-description"
                         role="tabpanel"
                         aria-labelledby="tab-title-description"
-                        dangerouslySetInnerHTML={{ __html: transformContent(p.description) }}
+                        dangerouslySetInnerHTML={{ __html: descHtml }}
                       />
                     </div>
                     )}

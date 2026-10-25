@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import "../globals.css";
 import "./admin.css";
 
 export const metadata: Metadata = {
@@ -7,7 +8,11 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-/** The root layout renders a bare <html><body class="adm-body"> for /admin paths. */
+/** Root layout for /admin (never cached). */
 export default function AdminLayout({ children }: { children: ReactNode }) {
-  return children;
+  return (
+    <html lang="zh-TW">
+      <body className="adm-body">{children}</body>
+    </html>
+  );
 }

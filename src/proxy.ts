@@ -113,6 +113,8 @@ export async function proxy(req: NextRequest) {
   }
 
   if (path.startsWith("/_next") || path.startsWith("/api/") || path.startsWith("/wp/")) return NextResponse.next();
+  // internal route for uncached rendering; only reachable through the rewrite below
+  if (path === "/dyn__" || path.startsWith("/dyn__/")) return new NextResponse("Not found", { status: 404 });
 
   // trailing slash -> 301 (keep query)
   if (path.length > 1 && path.endsWith("/")) {
@@ -158,7 +160,24 @@ export async function proxy(req: NextRequest) {
   const headers = new Headers(req.headers);
   headers.set("x-pathname", path);
   headers.set("x-search", url.search);
+  // Cached (ISR) storefront unless the response depends on the query string or on the visitor's cart.
+  if (needsDynamic(path, url.searchParams)) {
+    const to = new URL(req.url);
+    to.pathname = "/dyn__" + (path === "/" ? "" : path);
+    return NextResponse.rewrite(to, { request: { headers } });
+  }
   return NextResponse.next({ request: { headers } });
+}
+
+// Query parameters that never change the page (ad / analytics click ids): ignored when choosing cached vs dynamic.
+const TRACKING = /^(utm_[a-z_]+|fbclid|gclid|gbraid|wbraid|msclkid|yclid|mc_cid|mc_eid|_ga|_gl|igshid|ref|srsltid)$/i;
+const DYNAMIC_FIRST = new Set(["cart", "cart-2", "checkout", "checkout-2", "my-account", "my-account-2"]);
+
+function needsDynamic(path: string, sp: URLSearchParams): boolean {
+  const first = decode(path.split("/")[1] ?? "").toLowerCase();
+  if (DYNAMIC_FIRST.has(first)) return true;
+  for (const k of sp.keys()) if (!TRACKING.test(k)) return true;
+  return false;
 }
 
 export const config = {

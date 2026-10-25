@@ -1,3 +1,4 @@
+import { urlAtLeast } from "@/lib/img";
 import { Fragment } from "react";
 import { getMenu, getRecentPosts, getTagCloud, siteConfig, type MenuItem } from "@/lib/data";
 import { encPath, ymd, isoLocal } from "@/lib/format";
@@ -88,7 +89,7 @@ export async function Header({ cartCount, current }: { cartCount: number; curren
             <div id="logo">
               <a href="/">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img className="penci-mainlogo pclogo-cls" src={LOGO_URL} alt={SITE_NAME} width={655} height={116} />
+                <img className="penci-mainlogo pclogo-cls" src={LOGO_URL} alt={SITE_NAME} width={655} height={116} decoding="async" />
               </a>
             </div>
             <div className="header-slogan">
@@ -145,7 +146,7 @@ export function SideItem({ p, imgCls = "penci-image-holder small-fix-size" }: { 
     <li className="penci-feed">
       <div className="side-item">
         <div className="side-image">
-          <a className={imgCls} rel="bookmark" style={p.media ? { backgroundImage: `url('${p.media.public_url}')` } : undefined} href={url} title={p.title}></a>
+          <a className={imgCls} rel="bookmark" style={p.media ? { backgroundImage: `url('${urlAtLeast(p.media, 480)}')` } : undefined} href={url} title={p.title}></a>
         </div>
         <div className="side-item-text">
           <h4 className="side-title-post">
@@ -300,7 +301,7 @@ export async function OffCanvas({ current }: { current?: string }) {
         <div id="sidebar-nav-logo">
           <a href="/">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={LOGO_URL} width={655} height={116} alt={SITE_NAME} loading="lazy" />
+            <img src={LOGO_URL} width={655} height={116} alt={SITE_NAME} loading="lazy" decoding="async" />
           </a>
         </div>
         <div className="header-social sidebar-nav-social">

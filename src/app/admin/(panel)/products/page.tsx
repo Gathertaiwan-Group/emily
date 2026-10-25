@@ -1,3 +1,4 @@
+import { urlAtLeast } from "@/lib/img";
 import { listProducts } from "@/lib/cms/products";
 import { db } from "@/lib/db";
 import { deleteProductForever, restoreProduct, trashProduct } from "../../actions";
@@ -12,8 +13,8 @@ export default async function ProductsPage({ searchParams }: { searchParams: SP 
   const status = q.status || "all";
   const list = await listProducts({ status, search: q.s, termId: q.term ? Number(q.term) : undefined, page: Number(q.page || 1), per: 20 });
   const mids = list.rows.map((p) => p.featured_media_id).filter(Boolean);
-  const media = mids.length ? (((await db().from("media").select("id,public_url").in("id", mids)).data ?? []) as any[]) : [];
-  const img = new Map(media.map((m) => [m.id, m.public_url]));
+  const media = mids.length ? (((await db().from("media").select("id,public_url,width,height,variants").in("id", mids)).data ?? []) as any[]) : [];
+  const img = new Map(media.map((m) => [m.id, urlAtLeast(m, 480)]));
   return (
     <>
       <h1 className="adm-h1">

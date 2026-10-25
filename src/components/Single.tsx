@@ -1,5 +1,6 @@
 import { adjacentPosts, approvedComments, getAuthors, mediaByIds, postTerms, relatedPosts, type Post } from "@/lib/data";
-import { transformContent } from "@/lib/content";
+import { renderContent } from "@/lib/content-img";
+import { imgProps, urlAtLeast } from "@/lib/img";
 import { isoLocal, trimChars, ymd } from "@/lib/format";
 import { SITE_URL } from "@/lib/site";
 import { CatLinks, Sidebar } from "./Blog";
@@ -17,7 +18,7 @@ export async function SinglePost({ post }: { post: Post }) {
   const tags = terms.filter((t) => t.taxonomy === "post_tag");
   const author = post.author_id ? authors.get(post.author_id) : undefined;
   const img = post.featured_media_id ? media.get(post.featured_media_id) : undefined;
-  const [{ prev, next }, related] = await Promise.all([adjacentPosts(post), relatedPosts(post, cats)]);
+  const [{ prev, next }, related, body] = await Promise.all([adjacentPosts(post), relatedPosts(post, cats), renderContent(post.content)]);
   const url = href(post.link_path);
   const abs = SITE_URL + url;
   const authorUrl = author?.link_path ? href(author.link_path) : "#";
@@ -66,9 +67,7 @@ export async function SinglePost({ post }: { post: Post }) {
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   className="attachment-penci-full-thumb size-penci-full-thumb wp-post-image pc-singlep-img"
-                  width={img.width ?? undefined}
-                  height={img.height ?? undefined}
-                  src={img.public_url}
+                  {...imgProps(img, { sizes: "(max-width: 1170px) 100vw, 1170px", priority: true })}
                   alt={img.alt_text || ""}
                   title={img.title}
                 />
@@ -81,7 +80,7 @@ export async function SinglePost({ post }: { post: Post }) {
             <div className="theiaStickySidebar">
               <article id={`post-${post.id}`} className="post type-post status-publish">
                 <div className="post-entry blockquote-style-1">
-                  <div className="inner-post-entry entry-content" id="penci-post-entry-inner" dangerouslySetInnerHTML={{ __html: transformContent(post.content) }} />
+                  <div className="inner-post-entry entry-content" id="penci-post-entry-inner" dangerouslySetInnerHTML={{ __html: body }} />
                   <div className="penci-single-link-pages"></div>
                   {tags.length > 0 && (
                     <div className="post-tags">
@@ -165,7 +164,7 @@ export async function SinglePost({ post }: { post: Post }) {
                         <div key={r.id} className="item-related">
                           <a
                             className="related-thumb penci-image-holder"
-                            style={r.media ? { backgroundImage: `url('${r.media.public_url}')` } : undefined}
+                            style={r.media ? { backgroundImage: `url('${urlAtLeast(r.media, 480)}')` } : undefined}
                             href={href(r.link_path)}
                             title={r.title}
                           ></a>
@@ -226,7 +225,7 @@ export async function SinglePost({ post }: { post: Post }) {
 
 export async function PageView({ post, home = false, children }: { post: Post; home?: boolean; children?: React.ReactNode }) {
   const full = post.template === "page-fullwidth.php";
-  const html = children ? undefined : { __html: transformContent(post.content) };
+  const html = children ? undefined : { __html: await renderContent(post.content) };
   if (full) {
     return (
       <div className="container-single-page container-default-page">

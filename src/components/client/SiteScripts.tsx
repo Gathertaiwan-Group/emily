@@ -21,8 +21,8 @@ type QV = {
   sale_price: number | null;
   on_sale: boolean;
   short_description: string;
-  image: { url: string; w: number | null; h: number | null } | null;
-  gallery: { url: string; w: number | null; h: number | null }[];
+  image: { url: string; srcset?: string | null; w: number | null; h: number | null } | null;
+  gallery: { url: string; srcset?: string | null; w: number | null; h: number | null }[];
   cats: { name: string; link: string | null }[];
   sold_individually: boolean;
   max_qty: number | null;
@@ -408,7 +408,7 @@ export default function SiteScripts() {
                           <div className="woocommerce-product-gallery__image">
                             <a href={encPath(qv.link)}>
                               {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img width={600} height={600} src={m!.url} className="wp-post-image" alt="" />
+                              <img width={600} height={600} src={m!.url} srcSet={m!.srcset ?? undefined} sizes={m!.srcset ? "(max-width: 768px) 100vw, 600px" : undefined} decoding="async" className="wp-post-image" alt="" />
                             </a>
                           </div>
                         </figure>
