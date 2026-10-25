@@ -80,6 +80,8 @@ export async function saveMenu(actor: Actor, id: number, patch: { name?: string;
     const row: any = {};
     if (patch.name !== undefined) row.name = patch.name;
     if (patch.location !== undefined) row.location = patch.location || null;
+    // a theme location shows exactly one menu (WordPress nav_menu_locations semantics)
+    if (row.location) must(await db().from("menus").update({ location: null }).eq("location", row.location).neq("id", id), "menus");
     must(await db().from("menus").update(row).eq("id", id), "menus");
   }
   must(await db().from("menu_items").delete().eq("menu_id", id), "menu_items");

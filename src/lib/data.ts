@@ -182,9 +182,12 @@ export const getAuthors = () =>
   });
 
 export type MenuItem = { id: number; parent_id: number | null; position: number; title: string; url: string; object_type: string | null; children: MenuItem[] };
-export const getMenu = (slug: string) =>
-  memo("menu:" + slug, 5 * MIN, async () => {
-    const m = must(await db().from("menus").select("id").eq("slug", slug).maybeSingle(), "menu") as { id: number } | null;
+/** Menu assigned to a theme location (WordPress nav_menu_locations: main-menu, footer-menu ...). */
+export const getMenuByLocation = (location: string) => getMenu(location, "location");
+export const getMenu = (key: string, by: "slug" | "location" = "slug") =>
+  memo(`menu:${by}:${key}`, 5 * MIN, async () => {
+    const rows = must(await db().from("menus").select("id").eq(by, key).order("id").limit(1), "menu") as { id: number }[];
+    const m = rows[0] ?? null;
     if (!m) return [] as MenuItem[];
     const items = must(
       await db().from("menu_items").select("id,parent_id,position,title,url,object_type").eq("menu_id", m.id).order("position"),

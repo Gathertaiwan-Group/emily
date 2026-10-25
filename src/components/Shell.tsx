@@ -1,6 +1,6 @@
 import { urlAtLeast } from "@/lib/img";
 import { Fragment } from "react";
-import { getMenu, getRecentPosts, getTagCloud, siteConfig, type MenuItem } from "@/lib/data";
+import { getMenuByLocation, getRecentPosts, getTagCloud, siteConfig, type MenuItem } from "@/lib/data";
 import { encPath, ymd, isoLocal } from "@/lib/format";
 import { SLOGAN_LINES } from "@/lib/site";
 
@@ -79,7 +79,7 @@ export function SearchForm() {
 }
 
 export async function Header({ cartCount, current }: { cartCount: number; current?: string }) {
-  const menu = await getMenu("menu-beta");
+  const menu = await getMenuByLocation("main-menu");
   const { logo: LOGO_URL, name: SITE_NAME } = await siteConfig();
   return (
     <div className="penci-header-wrap">
@@ -168,7 +168,7 @@ export function SideItem({ p, imgCls = "penci-image-holder small-fix-size" }: { 
 }
 
 export async function Footer() {
-  const [recent, cloud, footerMenu] = await Promise.all([getRecentPosts(), getTagCloud(), getMenu("menu-footer-menu")]);
+  const [recent, cloud, footerMenu] = await Promise.all([getRecentPosts(), getTagCloud(), getMenuByLocation("footer-menu")]);
   const { logo: LOGO_URL, social: SOCIAL } = await siteConfig();
   return (
     <>
@@ -287,7 +287,7 @@ export async function Footer() {
 }
 
 export async function OffCanvas({ current }: { current?: string }) {
-  const menu = await getMenu("menu-beta-1");
+  const menu = await getMenuByLocation("main-menu");
   const { logo: LOGO_URL, name: SITE_NAME, social: SOCIAL } = await siteConfig();
   return (
     <>

@@ -69,9 +69,9 @@ export function MenuEditor({ menu, initial, sources }: { menu: { id: number; nam
             <label className="adm-label">顯示位置</label>
             <select name="location" defaultValue={menu.location ?? ""}>
               <option value="">（無）</option>
-              <option value="menu-beta">主選單（頁首）</option>
-              <option value="menu-footer-menu">頁尾選單</option>
-              <option value="menu-beta-1">行動版選單</option>
+              <option value="main-menu">主選單（頁首＋行動版）</option>
+              <option value="footer-menu">頁尾選單</option>
+              <option value="topbar-menu">頂部列選單（佈景未顯示）</option>
             </select>
           </div>
         </div>

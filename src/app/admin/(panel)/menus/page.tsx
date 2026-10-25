@@ -2,7 +2,7 @@ import { listMenus } from "@/lib/cms/site";
 import { Notice, sp, type SP } from "../../components/ui";
 
 export const metadata = { title: "選單" };
-const LOC: Record<string, string> = { "menu-beta": "主選單（頁首）", "menu-footer-menu": "頁尾選單", "menu-beta-1": "行動版選單" };
+const LOC: Record<string, string> = { "main-menu": "主選單（頁首＋行動版）", "footer-menu": "頁尾選單", "topbar-menu": "頂部列選單（佈景未顯示）" };
 
 export default async function MenusPage({ searchParams }: { searchParams: SP }) {
   const q = await sp(searchParams);
