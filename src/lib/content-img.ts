@@ -49,7 +49,7 @@ export async function responsiveContent(html: string): Promise<string> {
   };
 
   // <img>
-  let s = html.replace(/<img\b[^>]*>/gi, (tag) => {
+  let s = html.replace(/<img\b[^>]*>/gi, (tag: string, offset: number, whole: string) => {
     let t = tag;
     const src = getAttr(t, "src") ?? "";
     const m = find(src);
@@ -58,7 +58,10 @@ export async function responsiveContent(html: string): Promise<string> {
       const w = Number(getAttr(t, "width")) || null;
       const oldSizes = getAttr(t, "sizes");
       t = dropAttr(dropAttr(t, "srcset"), "sizes");
-      const sizes = oldSizes && !/^\s*$/.test(oldSizes) ? oldSizes : w ? `(max-width: ${w}px) 100vw, ${w}px` : "100vw";
+      let sizes = oldSizes && !/^\s*$/.test(oldSizes) ? oldSizes : w ? `(max-width: ${w}px) 100vw, ${w}px` : "100vw";
+      // Gutenslider background images (object-fit layers sized by the slide): "sizes=auto" there feeds the
+      // image's own width back into the layout and blows the page up to the max height -> use the explicit list.
+      if (/eedee-background-div/.test(whole.slice(Math.max(0, offset - 200), offset))) sizes = sizes.replace(/^\s*auto\s*,\s*/i, "");
       t = addAttr(t, `srcset="${esc(set)}" sizes="${esc(sizes)}"`);
       if (!getAttr(t, "width") && !getAttr(t, "height") && m.width && m.height) t = addAttr(t, `width="${m.width}" height="${m.height}"`);
     }
