@@ -386,24 +386,40 @@ export async function approvedComments(postId: number) {
   return (r.data ?? []) as { id: number; parent_id: number | null; author_name: string; author_url: string; avatar_url: string | null; content: string; date: string; type: string }[];
 }
 
-/** Footer tag cloud. The old site's tag-cloud block showed 45 tags picked at random (ties at the
- *  count cut-off are returned in arbitrary order by MySQL), sorted by name, sized 8–22pt by count.
- *  (Verified against 3 saved old pages: ~half of the 45 shown tags have count 1, matching a random pick.) */
+/** Footer tag cloud = WordPress wp_tag_cloud() (core/tag-cloud block, block-22).
+ *  Selection: settings.tag_cloud.term_ids when present (loveccdd.com served a different random set
+ *  per request, so the set on the saved home page is frozen there), otherwise wp_tag_cloud's own
+ *  query: the 45 post_tags with most published posts, ties by name. Display order: name
+ *  (strnatcasecmp). Size: default_topic_count_scale = round(log10(count + 1) * 100), mapped
+ *  linearly onto smallest..largest (8..22pt) between the min/max of the selected tags. */
 export const getTagCloud = () =>
   memo("tagcloud", 10 * MIN, async () => {
-    const { all } = await getTerms();
-    const pool = all.filter((t) => t.taxonomy === "post_tag" && t.count > 0);
-    for (let i = pool.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [pool[i], pool[j]] = [pool[j], pool[i]];
+    const [{ all, byId }, settings] = await Promise.all([getTerms(), getSettings().catch(() => ({}) as Record<string, any>)]);
+    const cfg = (settings.tag_cloud ?? {}) as { term_ids?: number[]; number?: number; smallest?: number; largest?: number };
+    const number = Number(cfg.number) || 45;
+    const smallest = Number(cfg.smallest) || 8;
+    const largest = Number(cfg.largest) || 22;
+    const natcase = (a: string, b: string) => a.localeCompare(b, "en", { numeric: true, sensitivity: "base" }) || (a < b ? -1 : a > b ? 1 : 0);
+    const byName = (a: Term, b: Term) => {
+      const x = a.name.toLowerCase(), y = b.name.toLowerCase();
+      // strnatcasecmp compares bytes; UTF-16 code-unit order equals UTF-8 byte order for BMP text.
+      return /^[\x00-\x7f]*$/.test(x + y) ? natcase(x, y) : x < y ? -1 : x > y ? 1 : 0;
+    };
+    let tags: Term[];
+    if (Array.isArray(cfg.term_ids) && cfg.term_ids.length) {
+      tags = cfg.term_ids.map((id) => byId.get(Number(id))).filter((t): t is Term => !!t && t.taxonomy === "post_tag" && t.count > 0);
+    } else {
+      tags = all
+        .filter((t) => t.taxonomy === "post_tag" && t.count > 0)
+        .sort((a, b) => b.count - a.count || byName(a, b))
+        .slice(0, number);
     }
-    const key = (s: string) => s.toLowerCase();
-    const tags = pool.slice(0, 45).sort((a, b) => (key(a.name) < key(b.name) ? -1 : key(a.name) > key(b.name) ? 1 : 0));
-    const counts = tags.map((t) => t.count);
-    const min = Math.min(...counts);
-    const spread = Math.max(...counts) - min || 1;
-    const step = (22 - 8) / spread;
-    return tags.map((t) => ({ term: t, size: +(8 + (t.count - min) * step).toFixed(3) }));
+    tags = [...tags].sort(byName);
+    const scaled = tags.map((t) => Math.round(Math.log10(t.count + 1) * 100));
+    const min = Math.min(...scaled);
+    const spread = Math.max(...scaled) - min || 1;
+    const step = (largest - smallest) / spread;
+    return tags.map((t, i) => ({ term: t, size: Number((smallest + (scaled[i] - min) * step).toPrecision(14)) /* PHP float echo precision */ }));
   });
 
 /** Category tree for the sidebar "Categories" widget (non-empty categories with counts). */

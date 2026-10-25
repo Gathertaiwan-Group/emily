@@ -37,19 +37,32 @@ export function esc(s: string | null | undefined): string {
     .replace(/'/g, "&#039;");
 }
 
+const NAMED: Record<string, string> = {
+  amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ", hellip: "…", ndash: "–", mdash: "—",
+  lsquo: "‘", rsquo: "’", ldquo: "“", rdquo: "”", laquo: "«", raquo: "»", middot: "·", bull: "•",
+  copy: "©", reg: "®", trade: "™", times: "×", deg: "°", yen: "¥", euro: "€",
+};
+
+/** Decode HTML character references in ONE pass (WordPress stores wptexturize output such as
+ *  &#038; / &#8217;), so text can be escaped exactly once on output. */
+export function decodeEntities(s: string): string {
+  return s.replace(/&(#x[0-9a-f]+|#[0-9]+|[a-z][a-z0-9]*);/gi, (m, ref: string) => {
+    if (ref[0] === "#") {
+      const n = ref[1] === "x" || ref[1] === "X" ? parseInt(ref.slice(2), 16) : parseInt(ref.slice(1), 10);
+      return n > 0 && n <= 0x10ffff && !(n >= 0xd800 && n <= 0xdfff) ? String.fromCodePoint(n) : m;
+    }
+    return NAMED[ref.toLowerCase()] ?? m;
+  });
+}
+
+/** Plain text from stored HTML: tags removed, character references decoded (escape on output). */
 export function stripTags(html: string | null | undefined): string {
-  return String(html ?? "")
+  const text = String(html ?? "")
     .replace(/<style[\s\S]*?<\/style>/gi, "")
     .replace(/<script[\s\S]*?<\/script>/gi, "")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&hellip;/g, "…")
-    .replace(/&#8211;/g, "–")
-    .replace(/&#8230;/g, "…")
-    .replace(/&amp;/g, "&")
-    .replace(/&quot;/g, '"')
-    .replace(/&#0?39;/g, "'")
-    .replace(/\s+/g, " ")
+    .replace(/<[^>]+>/g, " ");
+  return decodeEntities(text)
+    .replace(/[\s\u00a0]+/g, " ")
     .trim();
 }
 

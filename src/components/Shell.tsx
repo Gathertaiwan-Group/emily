@@ -1,8 +1,17 @@
 import { urlAtLeast } from "@/lib/img";
+import { LOGO_URL as DEFAULT_LOGO_URL, STORAGE_BASE } from "@/lib/site";
 import { Fragment } from "react";
 import { getMenuByLocation, getRecentPosts, getTagCloud, siteConfig, type MenuItem } from "@/lib/data";
 import { encPath, ymd, isoLocal } from "@/lib/format";
 import { SLOGAN_LINES } from "@/lib/site";
+
+/** The migrated logo (655px) also exists as the 480px WebP variant; offer both so 1x screens
+ *  (the header shows it at ≤250 CSS px) fetch the small file. A logo changed in /admin/settings has
+ *  no known variants and is output as-is. */
+function logoSrcSet(url: string, sizes: string): { srcSet?: string; sizes?: string } {
+  if (url !== DEFAULT_LOGO_URL) return {};
+  return { srcSet: `${STORAGE_BASE}/v/480/uploads/2022/03/logo-4.webp 480w, ${url} 655w`, sizes };
+}
 
 export function href(url: string): string {
   if (/^(https?:|mailto:|tel:|#)/.test(url)) return url;
@@ -89,7 +98,7 @@ export async function Header({ cartCount, current }: { cartCount: number; curren
             <div id="logo">
               <a href="/">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img className="penci-mainlogo pclogo-cls" src={LOGO_URL} alt={SITE_NAME} width={655} height={116} decoding="async" />
+                <img className="penci-mainlogo pclogo-cls" src={LOGO_URL} {...logoSrcSet(LOGO_URL, "250px")} alt={SITE_NAME} width={655} height={116} decoding="async" />
               </a>
             </div>
             <div className="header-slogan">
@@ -204,7 +213,7 @@ export async function Footer() {
                                     <style>{`.stk-4d95e77 .stk-img-wrapper img{transform:scale(0.87) !important}.stk-4d95e77 .stk-img-wrapper{width:50% !important}`}</style>
                                     <figure className="stk-img-wrapper stk-image--shape-stretch">
                                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                                      <img loading="lazy" decoding="async" className="stk-img wp-image-2474" src={LOGO_URL} width={655} height={116} alt="" />
+                                      <img loading="lazy" decoding="async" className="stk-img wp-image-2474" src={LOGO_URL} {...logoSrcSet(LOGO_URL, "(max-width: 767px) 50vw, 150px")} width={655} height={116} alt="" />
                                     </figure>
                                   </div>
                                 </div>
@@ -301,7 +310,7 @@ export async function OffCanvas({ current }: { current?: string }) {
         <div id="sidebar-nav-logo">
           <a href="/">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={LOGO_URL} width={655} height={116} alt={SITE_NAME} loading="lazy" decoding="async" />
+            <img src={LOGO_URL} {...logoSrcSet(LOGO_URL, "270px")} width={655} height={116} alt={SITE_NAME} loading="lazy" decoding="async" />
           </a>
         </div>
         <div className="header-social sidebar-nav-social">
