@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/admin/auth";
 import { notFound } from "next/navigation";
 import { getMenu } from "@/lib/cms/site";
 import { db } from "@/lib/db";
@@ -7,6 +8,7 @@ import { Notice, sp, type SP } from "../../../components/ui";
 export const metadata = { title: "編輯選單" };
 
 export default async function MenuPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: SP }) {
+  await requireAdmin();
   const { id } = await params;
   const q = await sp(searchParams);
   const m = await getMenu(Number(id));

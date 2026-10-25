@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/admin/auth";
 import { dashboardCounts, listAudit } from "@/lib/cms/site";
 import { listPosts } from "@/lib/cms/posts";
 import { dt } from "../components/ui";
@@ -5,6 +6,7 @@ import { dt } from "../components/ui";
 export const metadata = { title: "控制台" };
 
 export default async function Dashboard() {
+  await requireAdmin();
   const [c, recent, drafts] = await Promise.all([dashboardCounts(), listAudit({ per: 10 }), listPosts({ type: "post", status: "draft", per: 5 })]);
   const stats: [string, number, string][] = [
     ["已發布文章", c.posts, "/admin/posts"],

@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/admin/auth";
 import { notFound } from "next/navigation";
 import { getPost } from "@/lib/cms/posts";
 import { PostEditor } from "../../../components/PostEditor";
@@ -6,6 +7,7 @@ import { Notice, sp, type SP } from "../../../components/ui";
 export const metadata = { title: "編輯" };
 
 export default async function EditPost({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: SP }) {
+  await requireAdmin();
   const { id } = await params;
   const q = await sp(searchParams);
   const p = await getPost(Number(id));

@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/admin/auth";
 import { listMedia } from "@/lib/cms/media";
 import { Uploader } from "../../components/Uploader";
 import { Notice, Pager, SubNav, sp, type SP } from "../../components/ui";
@@ -5,6 +6,7 @@ import { Notice, Pager, SubNav, sp, type SP } from "../../components/ui";
 export const metadata = { title: "媒體庫" };
 
 export default async function MediaPage({ searchParams }: { searchParams: SP }) {
+  await requireAdmin();
   const q = await sp(searchParams);
   const type = q.type || "all";
   const list = await listMedia({ search: q.s, type, page: Number(q.page || 1), per: 60 });

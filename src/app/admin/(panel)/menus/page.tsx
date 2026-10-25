@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/admin/auth";
 import { listMenus } from "@/lib/cms/site";
 import { Notice, sp, type SP } from "../../components/ui";
 
@@ -5,6 +6,7 @@ export const metadata = { title: "選單" };
 const LOC: Record<string, string> = { "main-menu": "主選單（頁首＋行動版）", "footer-menu": "頁尾選單", "topbar-menu": "頂部列選單（佈景未顯示）" };
 
 export default async function MenusPage({ searchParams }: { searchParams: SP }) {
+  await requireAdmin();
   const q = await sp(searchParams);
   const menus = await listMenus();
   return (

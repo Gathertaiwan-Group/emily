@@ -1,9 +1,11 @@
+import { requireAdmin } from "@/lib/admin/auth";
 import { PostEditor } from "../../../components/PostEditor";
 import { Notice, sp, type SP } from "../../../components/ui";
 
 export const metadata = { title: "新增" };
 
 export default async function NewPost({ searchParams }: { searchParams: SP }) {
+  await requireAdmin();
   const q = await sp(searchParams);
   const type = q.type === "page" ? "page" : "post";
   return (

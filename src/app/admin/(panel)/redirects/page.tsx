@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/admin/auth";
 import { listRedirects } from "@/lib/cms/site";
 import { deleteRedirect, saveRedirect } from "../../actions";
 import { ConfirmButton } from "../../components/ConfirmButton";
@@ -6,6 +7,7 @@ import { Notice, Pager, SubNav, sp, type SP } from "../../components/ui";
 export const metadata = { title: "轉址" };
 
 export default async function RedirectsPage({ searchParams }: { searchParams: SP }) {
+  await requireAdmin();
   const q = await sp(searchParams);
   const kind = q.kind || "all";
   const list = await listRedirects({ search: q.s, kind, page: Number(q.page || 1), per: 50 });

@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/admin/auth";
 import { notFound } from "next/navigation";
 import { getMedia } from "@/lib/cms/media";
 import { deleteMediaItem, saveMediaMeta } from "../../../actions";
@@ -7,6 +8,7 @@ import { Notice, dt, sp, type SP } from "../../../components/ui";
 export const metadata = { title: "編輯媒體" };
 
 export default async function MediaItem({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: SP }) {
+  await requireAdmin();
   const { id } = await params;
   const q = await sp(searchParams);
   const m = await getMedia(Number(id));

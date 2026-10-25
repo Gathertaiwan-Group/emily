@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/admin/auth";
 import { notFound } from "next/navigation";
 import { ORDER_STATUSES, getCustomer } from "@/lib/cms/commerce";
 import { saveCustomer } from "../../../actions";
@@ -19,6 +20,7 @@ const F: [string, string][] = [
 ];
 
 export default async function CustomerPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: SP }) {
+  await requireAdmin();
   const { id } = await params;
   const q = await sp(searchParams);
   const c = await getCustomer(Number(id));

@@ -1,9 +1,11 @@
+import { requireAdmin } from "@/lib/admin/auth";
 import { listAudit } from "@/lib/cms/site";
 import { Notice, Pager, SubNav, dt, sp, type SP } from "../../components/ui";
 
 export const metadata = { title: "稽核紀錄" };
 
 export default async function AuditPage({ searchParams }: { searchParams: SP }) {
+  await requireAdmin();
   const q = await sp(searchParams);
   const source = q.source || "all";
   const list = await listAudit({ source, search: q.s, entityType: q.type || undefined, page: Number(q.page || 1), per: 50 });

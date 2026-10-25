@@ -1,9 +1,11 @@
+import { requireAdmin } from "@/lib/admin/auth";
 import { listCustomers } from "@/lib/cms/commerce";
 import { Notice, Pager, dt, money, sp, type SP } from "../../components/ui";
 
 export const metadata = { title: "顧客" };
 
 export default async function CustomersPage({ searchParams }: { searchParams: SP }) {
+  await requireAdmin();
   const q = await sp(searchParams);
   const list = await listCustomers({ search: q.s, page: Number(q.page || 1), per: 20 });
   return (

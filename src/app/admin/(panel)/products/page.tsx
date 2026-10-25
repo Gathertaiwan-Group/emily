@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/admin/auth";
 import { urlAtLeast } from "@/lib/img";
 import { listProducts } from "@/lib/cms/products";
 import { db } from "@/lib/db";
@@ -9,6 +10,7 @@ export const metadata = { title: "商品" };
 const STOCK: Record<string, string> = { instock: "有庫存", outofstock: "缺貨", onbackorder: "可預購" };
 
 export default async function ProductsPage({ searchParams }: { searchParams: SP }) {
+  await requireAdmin();
   const q = await sp(searchParams);
   const status = q.status || "all";
   const list = await listProducts({ status, search: q.s, termId: q.term ? Number(q.term) : undefined, page: Number(q.page || 1), per: 20 });

@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/admin/auth";
 import { listPosts, statusCounts } from "@/lib/cms/posts";
 import { listTerms } from "@/lib/cms/terms";
 import { db } from "@/lib/db";
@@ -8,6 +9,7 @@ import { Badge, Notice, Pager, POST_STATUS_LABEL, SubNav, dt, sp, type SP } from
 export const metadata = { title: "文章" };
 
 export default async function PostsPage({ searchParams }: { searchParams: SP }) {
+  await requireAdmin();
   const q = await sp(searchParams);
   const type = q.type === "page" ? "page" : "post";
   const status = q.status || "all";

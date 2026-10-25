@@ -1,9 +1,11 @@
+import { requireAdmin } from "@/lib/admin/auth";
 import { ProductEditor } from "../../../components/ProductEditor";
 import { Notice, sp, type SP } from "../../../components/ui";
 
 export const metadata = { title: "新增商品" };
 
 export default async function NewProduct({ searchParams }: { searchParams: SP }) {
+  await requireAdmin();
   const q = await sp(searchParams);
   return (
     <>

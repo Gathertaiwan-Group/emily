@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/admin/auth";
 import { notFound } from "next/navigation";
 import { getProduct } from "@/lib/cms/products";
 import { ProductEditor } from "../../../components/ProductEditor";
@@ -6,6 +7,7 @@ import { Notice, sp, type SP } from "../../../components/ui";
 export const metadata = { title: "編輯商品" };
 
 export default async function EditProduct({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: SP }) {
+  await requireAdmin();
   const { id } = await params;
   const q = await sp(searchParams);
   const p = await getProduct(Number(id));

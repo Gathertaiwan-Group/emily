@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/admin/auth";
 import { listCoupons } from "@/lib/cms/commerce";
 import { Notice, dt, money, sp, type SP } from "../../components/ui";
 
@@ -5,6 +6,7 @@ export const metadata = { title: "優惠券" };
 const TYPE: Record<string, string> = { percent: "百分比折扣", fixed_cart: "購物車固定折扣", fixed_product: "商品固定折扣" };
 
 export default async function CouponsPage({ searchParams }: { searchParams: SP }) {
+  await requireAdmin();
   const q = await sp(searchParams);
   const rows = await listCoupons();
   return (

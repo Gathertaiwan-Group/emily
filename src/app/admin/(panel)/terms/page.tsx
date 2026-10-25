@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/admin/auth";
 import { TAXONOMIES, listTerms, treeOrder } from "@/lib/cms/terms";
 import { decodeSlug } from "@/lib/cms/core";
 import { deleteTerm, saveTerm } from "../../actions";
@@ -7,6 +8,7 @@ import { Notice, SubNav, sp, type SP } from "../../components/ui";
 export const metadata = { title: "分類" };
 
 export default async function TermsPage({ searchParams }: { searchParams: SP }) {
+  await requireAdmin();
   const q = await sp(searchParams);
   const taxonomy = q.taxonomy && (TAXONOMIES[q.taxonomy] || /^pa_[a-z0-9_-]+$/.test(q.taxonomy)) ? q.taxonomy : "category";
   const meta = TAXONOMIES[taxonomy] ?? { label: taxonomy, hierarchical: false, base: null, object: "product" };

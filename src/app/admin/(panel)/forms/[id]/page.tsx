@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/admin/auth";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { listSubmissions } from "@/lib/cms/site";
@@ -7,6 +8,7 @@ import { Notice, Pager, SubNav, dt, sp, type SP } from "../../../components/ui";
 export const metadata = { title: "表單提交" };
 
 export default async function FormSubs({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: SP }) {
+  await requireAdmin();
   const { id } = await params;
   const q = await sp(searchParams);
   const form = (await db().from("forms").select("id,title,slug,fields").eq("id", Number(id)).maybeSingle()).data as any;

@@ -1,9 +1,11 @@
+import { requireAdmin } from "@/lib/admin/auth";
 import { ORDER_STATUSES, listOrders, orderStatusCounts } from "@/lib/cms/commerce";
 import { Badge, Notice, Pager, SubNav, dt, money, sp, type SP } from "../../components/ui";
 
 export const metadata = { title: "訂單" };
 
 export default async function OrdersPage({ searchParams }: { searchParams: SP }) {
+  await requireAdmin();
   const q = await sp(searchParams);
   const status = q.status || "all";
   const [list, counts] = await Promise.all([listOrders({ status, search: q.s, page: Number(q.page || 1), per: 20 }), orderStatusCounts()]);

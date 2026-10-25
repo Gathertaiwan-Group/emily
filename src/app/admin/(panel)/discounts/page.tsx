@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/admin/auth";
 import { listRules } from "@/lib/cms/commerce";
 import { listTerms } from "@/lib/cms/terms";
 import { db } from "@/lib/db";
@@ -9,6 +10,7 @@ export const metadata = { title: "數量折扣" };
 const TYPE: Record<string, string> = { percent: "百分比", fixed_per_item: "每件折抵", fixed_price: "固定單價" };
 
 export default async function DiscountsPage({ searchParams }: { searchParams: SP }) {
+  await requireAdmin();
   const q = await sp(searchParams);
   const [rules, prods, cats] = await Promise.all([listRules(), db().from("products").select("id,name").neq("status", "trash").order("name"), listTerms("product_cat")]);
   const edit = q.edit ? rules.find((r) => r.id === Number(q.edit)) : null;

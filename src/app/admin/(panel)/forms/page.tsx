@@ -1,9 +1,11 @@
+import { requireAdmin } from "@/lib/admin/auth";
 import { listForms } from "@/lib/cms/site";
 import { Notice, sp, type SP } from "../../components/ui";
 
 export const metadata = { title: "表單" };
 
 export default async function FormsPage({ searchParams }: { searchParams: SP }) {
+  await requireAdmin();
   const q = await sp(searchParams);
   const forms = await listForms();
   return (

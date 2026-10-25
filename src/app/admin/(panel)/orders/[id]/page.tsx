@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/admin/auth";
 import { notFound } from "next/navigation";
 import { ORDER_STATUSES, getOrder } from "@/lib/cms/commerce";
 import { addOrderNote, saveOrderAddresses, setOrderStatus } from "../../../actions";
@@ -19,6 +20,7 @@ const F: [string, string][] = [
 ];
 
 export default async function OrderPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: SP }) {
+  await requireAdmin();
   const { id } = await params;
   const q = await sp(searchParams);
   const o = await getOrder(Number(id));

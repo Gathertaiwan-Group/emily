@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/admin/auth";
 import { getAllSettings } from "@/lib/cms/site";
 import { saveSettings } from "../../actions";
 import { Notice, SubNav, sp, type SP } from "../../components/ui";
@@ -57,6 +58,7 @@ const TABS: Record<string, { label: string; fields: Field[] }> = {
 };
 
 export default async function SettingsPage({ searchParams }: { searchParams: SP }) {
+  await requireAdmin();
   const q = await sp(searchParams);
   const tab = TABS[q.tab] ? q.tab : "general";
   const all = await getAllSettings(true);
