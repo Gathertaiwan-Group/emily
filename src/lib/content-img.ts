@@ -58,7 +58,7 @@ export async function responsiveContent(html: string): Promise<string> {
       const w = Number(getAttr(t, "width")) || null;
       const oldSizes = getAttr(t, "sizes");
       t = dropAttr(dropAttr(t, "srcset"), "sizes");
-      let sizes = oldSizes && !/^\s*$/.test(oldSizes) ? oldSizes : w ? `(max-width: ${w}px) 100vw, ${w}px` : "100vw";
+      let sizes = oldSizes && !/^\s*$/.test(oldSizes) ? oldSizes : w ? `(max-width: ${w}px) 100vw, ${w}px` : "(max-width: 960px) 100vw, 960px"; // content column is ≤ ~780px wide
       // Gutenslider background images (object-fit layers sized by the slide): "sizes=auto" there feeds the
       // image's own width back into the layout and blows the page up to the max height -> use the explicit list.
       if (/eedee-background-div/.test(whole.slice(Math.max(0, offset - 200), offset))) sizes = sizes.replace(/^\s*auto\s*,\s*/i, "");
