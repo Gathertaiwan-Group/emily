@@ -13,6 +13,8 @@ import { PageView, SinglePost } from "@/components/Single";
 import { ProductSingle, ShopArchive } from "@/components/Shop";
 import CartView from "@/components/client/CartView";
 import CheckoutView from "@/components/client/CheckoutView";
+import { BACS_ACCOUNTS, availableGateways, gateway } from "@/lib/payments";
+import { newebpayEnabled } from "@/lib/newebpay";
 import AccountView from "@/components/client/AccountView";
 import { CompareView, WishlistView } from "@/components/client/ListsView";
 
@@ -68,14 +70,19 @@ async function searchProducts(q: string): Promise<PostCard[]> {
 }
 
 async function OrderReceived({ id, orderKey }: { id: number; orderKey: string }) {
-  const o = await db().from("orders").select("id,number,status,date_created,total,subtotal,discount_total,payment_method_title,billing,order_key,customer_note").eq("id", id).maybeSingle();
+  const o = await db().from("orders").select("id,number,status,date_created,total,subtotal,discount_total,payment_method,payment_method_title,billing,order_key,customer_note").eq("id", id).maybeSingle();
   if (!o.data || !orderKey || o.data.order_key !== orderKey) notFound();
   const items = (await db().from("order_items").select("name,quantity,total,item_type").eq("order_id", id)).data ?? [];
   const d = o.data as any;
+  const gw = gateway(d.payment_method ?? "");
   return (
     <div className="woocommerce">
       <div className="woocommerce-order">
-        <p className="woocommerce-notice woocommerce-notice--success woocommerce-thankyou-order-received">謝謝你，我們已經收到你的訂單。</p>
+        {d.status === "failed" ? (
+          <p className="woocommerce-notice woocommerce-notice--error woocommerce-thankyou-order-failed">很抱歉，因為原始銀行或商家拒絕你的交易，所以無法處理你的訂單。請再次嘗試購買。</p>
+        ) : (
+          <p className="woocommerce-notice woocommerce-notice--success woocommerce-thankyou-order-received">謝謝你，我們已經收到你的訂單。</p>
+        )}
         <ul className="woocommerce-order-overview woocommerce-thankyou-order-details order_details">
           <li className="woocommerce-order-overview__order order">
             訂單編號： <strong>{d.number ?? d.id}</strong>
@@ -93,7 +100,26 @@ async function OrderReceived({ id, orderKey }: { id: number; orderKey: string })
             付款方式： <strong>{d.payment_method_title}</strong>
           </li>
         </ul>
-        <p className="penci-notice">訂單狀態：待付款。本站尚未串接線上金流，我們會另行與你聯繫付款方式。</p>
+        {gw?.online && d.status === "pending" && <p className="penci-notice">尚未收到藍新金流的付款結果。若你已完成付款，請稍候片刻後重新整理此頁面。</p>}
+        {d.status === "cancelled" && <p className="penci-notice">此訂單已取消。</p>}
+        {gw?.instructions && d.status !== "cancelled" && <p>{gw.instructions}</p>}
+        {gw?.id === "bacs" && d.status === "on-hold" && (
+          <section className="woocommerce-bacs-bank-details">
+            <h2 className="wc-bacs-bank-details-heading">我們的銀行帳號</h2>
+            {BACS_ACCOUNTS.filter((a) => a.account_number).map((a, i) => (
+              <div key={i}>
+                <h3 className="wc-bacs-bank-details-account-name">{a.account_name}:</h3>
+                <ul className="wc-bacs-bank-details order_details bacs_details">
+                  <li className="bank_name">銀行：<strong>{a.bank_name}</strong></li>
+                  <li className="account_number">帳戶號碼：<strong>{a.account_number}</strong></li>
+                  <li className="sort_code">分行代碼：<strong>{a.sort_code}</strong></li>
+                  <li className="iban">IBAN：<strong>{a.iban}</strong></li>
+                  <li className="bic">BIC：<strong>{a.bic}</strong></li>
+                </ul>
+              </div>
+            ))}
+          </section>
+        )}
         <section className="woocommerce-order-details">
           <h2 className="woocommerce-order-details__title">訂單詳細資料</h2>
           <table className="woocommerce-table woocommerce-table--order-details shop_table order_details">
@@ -203,7 +229,7 @@ export async function StorefrontPage({ path, sp }: { path: string; sp: URLSearch
         if (!cart.items.length && r.post.slug === "checkout") redirect("/cart");
         return (
           <>
-            <PageView post={r.post}>{cart.items.length ? <CheckoutView initial={cart} /> : <div className="woocommerce"></div>}</PageView>
+            <PageView post={r.post}>{cart.items.length ? <CheckoutView initial={cart} payments={availableGateways(newebpayEnabled()).map((g) => ({ id: g.id, title: g.title, description: g.description }))} /> : <div className="woocommerce"></div>}</PageView>
             {LD}
           </>
         );

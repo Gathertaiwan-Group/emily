@@ -3,13 +3,8 @@ import { useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { encPath, fetchCart, money, sbCfg, type Cart } from "./util";
 
-const PAYMENTS = [
-  { id: "bacs", title: "銀行轉帳", desc: "直接匯款至我們的銀行帳戶。請在付款備註中填入你的訂單編號，訂單款項到帳後才會出貨。" },
-  { id: "cheque", title: "支票付款", desc: "請將支票寄送至商店地址。" },
-  { id: "cod", title: "貨到付款", desc: "貨到時以現金付款。" },
-  // 藍新金流 (ry_newebpay_credit) is hidden until a real gateway integration is approved: choosing it
-  // would only create an unpaid order while the customer expects a card payment page.
-];
+/** Payment methods offered by the server (lib/payments.ts); 藍新 is only included when its keys are set. */
+export type PaymentOption = { id: string; title: string; description: string };
 
 type F = { name: string; label: string; required?: boolean; type?: string; cls: string; autoComplete?: string; placeholder?: string };
 const FIELDS: F[] = [
@@ -26,9 +21,9 @@ const FIELDS: F[] = [
   { name: "billing_email", label: "電子郵件地址", required: true, cls: "form-row-wide", type: "email", autoComplete: "email" },
 ];
 
-export default function CheckoutView({ initial }: { initial: Cart }) {
+export default function CheckoutView({ initial, payments }: { initial: Cart; payments: PaymentOption[] }) {
   const [cart, setCart] = useState<Cart>(initial);
-  const [pm, setPm] = useState("bacs");
+  const [pm, setPm] = useState(payments[0]?.id ?? "");
   const [errors, setErrors] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [token, setToken] = useState<string | null>(null);
@@ -199,16 +194,13 @@ export default function CheckoutView({ initial }: { initial: Cart }) {
           </table>
           <div id="payment" className="woocommerce-checkout-payment">
             <ul className="wc_payment_methods payment_methods methods">
-              {PAYMENTS.map((p) => (
+              {payments.map((p) => (
                 <li key={p.id} className={`wc_payment_method payment_method_${p.id}`}>
                   <input id={`payment_method_${p.id}`} type="radio" className="input-radio" name="payment_method" value={p.id} checked={pm === p.id} onChange={() => setPm(p.id)} />
                   <label htmlFor={`payment_method_${p.id}`}>{p.title}</label>
                   {pm === p.id && (
                     <div className={`payment_box payment_method_${p.id}`}>
-                      <p>{p.desc}</p>
-                      <p>
-                        <small>（本站目前未串接線上金流：送出後會建立「待付款」訂單，我們將另行與您聯繫付款事宜。）</small>
-                      </p>
+                      <p dangerouslySetInnerHTML={{ __html: p.description }} />
                     </div>
                   )}
                 </li>

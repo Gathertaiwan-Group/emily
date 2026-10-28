@@ -85,7 +85,7 @@ export function buildServer(actor: Actor) {
       instructions:
         "The three of us（loveccdd.com）網站管理：文章、頁面、WooCommerce 商品（價格、庫存、變體）、分類、媒體、訂單、表單提交、網站設定、轉址。" +
         "所有寫入都會寫入稽核紀錄（site_emily.audit_log）。新增內容預設為草稿（status=draft），確認後再用 update_post / update_product 設 status=publish。" +
-        "刪除預設移到回收桶（force=true 才永久刪除）。金額單位 TWD。本站不串接真實金流，訂單只會是待付款等狀態。",
+        "刪除預設移到回收桶（force=true 才永久刪除）。金額單位 TWD。藍新金流訂單由 NotifyURL 自動更新狀態；銀行轉帳／支票／貨到付款需人工確認收款。",
     },
   );
 

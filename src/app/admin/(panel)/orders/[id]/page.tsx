@@ -54,6 +54,61 @@ export default async function OrderPage({ params, searchParams }: { params: Prom
               <dd>{o.created_via || "—"}</dd>
             </dl>
           </div>
+          {(o.meta?.newebpay || o.meta?.newebpay_MerchantOrderNo || o.payments.length > 0) && (
+            <div className="adm-card">
+              <h2 className="adm-h2">藍新金流交易資訊</h2>
+              <dl className="adm-kv">
+                <dt>商店訂單編號</dt>
+                <dd>{o.meta?.newebpay?.MerchantOrderNo ?? o.meta?.newebpay_MerchantOrderNo ?? "—"}</dd>
+                {o.meta?.newebpay &&
+                  (
+                    [
+                      ["TradeNo", "藍新交易序號"],
+                      ["PaymentType", "支付方式"],
+                      ["Amt", "金額"],
+                      ["PayTime", "付款時間"],
+                      ["RespondCode", "回應碼"],
+                      ["Auth", "授權碼"],
+                      ["AuthBank", "收單銀行"],
+                      ["Card6No", "卡號前六碼"],
+                      ["Card4No", "卡號末四碼"],
+                      ["Inst", "分期期數"],
+                    ] as const
+                  )
+                    .filter(([k]) => o.meta.newebpay[k])
+                    .map(([k, l]) => (
+                      <div key={k} style={{ display: "contents" }}>
+                        <dt>{l}</dt>
+                        <dd>{String(o.meta.newebpay[k])}</dd>
+                      </div>
+                    ))}
+              </dl>
+              {o.payments.length > 0 && (
+                <table className="adm-table">
+                  <thead>
+                    <tr>
+                      <th>收到時間</th>
+                      <th>狀態</th>
+                      <th>處理結果</th>
+                      <th className="num">金額</th>
+                      <th>訊息</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {o.payments.map((p: any, i: number) => (
+                      <tr key={i}>
+                        <td>{dt(p.received_at)}</td>
+                        <td>{p.status ?? "—"}</td>
+                        <td>{p.outcome}</td>
+                        <td className="num">{p.amount == null ? "—" : money(p.amount)}</td>
+                        <td>{p.info?.Message ?? ""}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )}
           <div className="adm-card">
             <h2 className="adm-h2">品項</h2>
             <table className="adm-table">
@@ -156,7 +211,7 @@ export default async function OrderPage({ params, searchParams }: { params: Prom
             </select>
             <label className="adm-label">附註（選填）</label>
             <input name="note" />
-            <p className="adm-help">本站未串接線上金流；收到款項後請手動改為「處理中」或「已完成」。</p>
+            <p className="adm-help">藍新金流訂單由付款通知自動更新；銀行轉帳／支票／貨到付款確認收款後請手動變更狀態。</p>
             <p>
               <button className="adm-btn primary">更新狀態</button>
             </p>

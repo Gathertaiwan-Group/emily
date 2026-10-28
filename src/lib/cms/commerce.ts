@@ -46,12 +46,13 @@ export async function orderStatusCounts() {
 export async function getOrder(id: number) {
   const o = must(await db().from("orders").select("*").eq("id", id).maybeSingle(), "orders") as any;
   if (!o) return null;
-  const [items, notes, refunds] = await Promise.all([
+  const [items, notes, refunds, payments] = await Promise.all([
     db().from("order_items").select("*").eq("order_id", id).order("id"),
     db().from("order_notes").select("*").eq("order_id", id).order("date", { ascending: false }),
     db().from("orders").select("id,total,date_created,meta").eq("parent_id", id).eq("type", "shop_order_refund"),
+    db().from("payment_events").select("received_at,gateway,merchant_order_no,trade_no,status,amount,outcome,info").eq("order_id", id).order("received_at", { ascending: false }).limit(50),
   ]);
-  return { ...o, items: must(items, "order_items") as any[], notes: must(notes, "order_notes") as any[], refunds: must(refunds, "orders") as any[] };
+  return { ...o, items: must(items, "order_items") as any[], notes: must(notes, "order_notes") as any[], refunds: must(refunds, "orders") as any[], payments: (payments.data ?? []) as any[] };
 }
 
 export async function updateOrderStatus(actor: Actor, id: number, status: string, note?: string) {
@@ -63,6 +64,8 @@ export async function updateOrderStatus(actor: Actor, id: number, status: string
   if ((status === "processing" || status === "completed") && !before.date_paid) row.date_paid = now;
   if (status === "completed") row.date_completed = now;
   must(await db().from("orders").update(row).eq("id", id), "orders");
+  // WooCommerce stock hooks (reduce on processing/completed/on-hold, restore on cancelled/pending); idempotent.
+  if (before.status !== status) must(await db().rpc("order_status_effects", { p_order_id: id, p_status: status }), "order_status_effects");
   const text = `訂單狀態已從 ${ORDER_STATUSES[before.status] ?? before.status} 變更為 ${ORDER_STATUSES[status]}。${note ? " " + note : ""}`;
   await db().from("order_notes").insert({ order_id: id, content: text, is_customer_note: false, added_by: actor.label });
   await audit(actor, "order.status", "order", id, { status: before.status }, { status, note: note ?? null });
