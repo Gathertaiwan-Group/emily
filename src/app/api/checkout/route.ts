@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 import { clearCart, viewCart } from "@/lib/cart";
 import { db, userFromToken } from "@/lib/db";
-import { availableGateways } from "@/lib/payments";
-import { cancelUnpaidOrders, newebpayEnabled } from "@/lib/newebpay";
+import { HOLD_STOCK_MINUTES, ONLINE_METHODS, availableGateways } from "@/lib/payments";
+import { cancelUnpaidOrders, clientIp, newebpayEnabled } from "@/lib/newebpay";
 
 export const dynamic = "force-dynamic";
 
@@ -59,6 +59,23 @@ export async function POST(req: Request) {
   if (errors.length || !gw) return NextResponse.json({ error: errors.join("\n"), errors }, { status: 422 });
   await cancelUnpaidOrders();
 
+  // Anti stock-locking: checkouts reduce stock immediately, so cap checkout rate per IP / e-mail and the
+  // number of unpaid 藍新 orders one visitor can hold (counted in the DB, serialised per IP / e-mail).
+  const ip = clientIp(req);
+  const guard = await db().rpc("checkout_guard", { p_ip: ip, p_email: f.billing_email, p_online: gw.online, p_methods: ONLINE_METHODS, p_hold_minutes: HOLD_STOCK_MINUTES });
+  if (guard.error) {
+    console.error("[checkout] guard failed", guard.error.message);
+    return NextResponse.json({ error: "目前無法建立訂單，請稍後再試。" }, { status: 503 });
+  }
+  if (guard.data === "too_many_unpaid") {
+    const msg = "您有多筆尚未完成付款的訂單。請先完成付款，或於 60 分鐘後未付款訂單自動取消後再下單。";
+    return NextResponse.json({ error: msg, errors: [msg] }, { status: 429 });
+  }
+  if (guard.data !== "ok") {
+    const msg = "結帳次數過於頻繁，請稍候幾分鐘後再試。";
+    return NextResponse.json({ error: msg, errors: [msg] }, { status: 429 });
+  }
+
   // optional signed-in customer
   const user = await userFromToken(typeof body?.access_token === "string" ? body.access_token : null);
   let customerId: number | null = null;
@@ -80,7 +97,6 @@ export async function POST(req: Request) {
     email: f.billing_email,
     phone: f.billing_phone,
   };
-  const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || null;
   const orderKey = "wc_order_" + randomBytes(9).toString("base64url");
   const ins = await db()
     .from("orders")

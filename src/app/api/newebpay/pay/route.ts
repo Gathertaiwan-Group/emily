@@ -34,13 +34,10 @@ export async function GET(req: Request) {
   const items = ((await db().from("order_items").select("name,quantity").eq("order_id", id).eq("item_type", "line_item")).data ?? []) as { name: string; quantity: number }[];
   const desc = items.map((i) => `${i.name}x${i.quantity}`).join(",").replace(/[^\p{L}\p{N} x,._-]/gu, "") || `訂單 ${id}`;
   const no = makeMerchantOrderNo(id);
-  const history: string[] = Array.isArray(o.meta?.newebpay_order_nos) ? o.meta.newebpay_order_nos : [];
-  const up = await db()
-    .from("orders")
-    .update({ meta: { ...(o.meta ?? {}), newebpay_MerchantOrderNo: no, newebpay_order_nos: [...history, no].slice(-10) } })
-    .eq("id", id)
-    .eq("status", "pending");
+  // atomic append (row-locked in SQL): parallel tabs each keep their own number
+  const up = await db().rpc("newebpay_register_order_no", { p_order_id: id, p_no: no, p_keep: 20 });
   if (up.error) return page("付款", "<p>暫時無法前往付款，請稍後再試。</p>", 500);
+  if (up.data !== true) return Response.redirect(new URL(back, u.origin), 303); // no longer pending
 
   const expire = new Date(Date.now() + NEWEBPAY_EXPIRE_DAYS * 86400_000).toLocaleDateString("sv-SE", { timeZone: "Asia/Taipei" }).replace(/-/g, "");
   const origin = u.origin;

@@ -10,20 +10,30 @@ export const MPG_ENDPOINT = {
   production: "https://core.newebpay.com/MPG/mpg_gateway",
 } as const;
 
-/** AES-256-CBC + PKCS7, hex output (TradeInfo). */
+/** PKCS7 block size used by 藍新's official PHP sample (addpadding pads to 32 bytes, so pad is 1..32). */
+export const PAD_BLOCK = 32;
+
+/** AES-256-CBC, PKCS7 padded to 32-byte blocks like 藍新's addpadding(), hex output (TradeInfo). */
 export function encryptTradeInfo(plain: string, keys: Pick<NewebpayKeys, "hashKey" | "hashIv">): string {
+  const buf = Buffer.from(plain, "utf8");
+  const pad = PAD_BLOCK - (buf.length % PAD_BLOCK);
   const c = createCipheriv("aes-256-cbc", Buffer.from(keys.hashKey, "utf8"), Buffer.from(keys.hashIv, "utf8"));
-  return Buffer.concat([c.update(plain, "utf8"), c.final()]).toString("hex");
+  c.setAutoPadding(false);
+  return Buffer.concat([c.update(Buffer.concat([buf, Buffer.alloc(pad, pad)])), c.final()]).toString("hex");
 }
 
-/** Reverses encryptTradeInfo. Throws on malformed input or bad padding. Tolerates trailing NULs. */
+/**
+ * Reverses encryptTradeInfo. Accepts PKCS7 padding of 1..32 bytes (藍新 pads to 32-byte blocks; a
+ * 16-byte-block sender is a subset) and verifies every pad byte. Throws on malformed input or bad
+ * padding. Tolerates trailing NULs in the plaintext.
+ */
 export function decryptTradeInfo(hex: string, keys: Pick<NewebpayKeys, "hashKey" | "hashIv">): string {
   if (!/^[0-9a-fA-F]+$/.test(hex) || hex.length % 32 !== 0) throw new Error("TradeInfo is not hex AES blocks");
   const d = createDecipheriv("aes-256-cbc", Buffer.from(keys.hashKey, "utf8"), Buffer.from(keys.hashIv, "utf8"));
   d.setAutoPadding(false);
   const buf = Buffer.concat([d.update(Buffer.from(hex, "hex")), d.final()]);
   const pad = buf[buf.length - 1];
-  if (pad < 1 || pad > 16 || pad > buf.length) throw new Error("bad padding");
+  if (pad < 1 || pad > PAD_BLOCK || pad > buf.length) throw new Error("bad padding");
   for (let i = buf.length - pad; i < buf.length; i++) if (buf[i] !== pad) throw new Error("bad padding");
   return buf.subarray(0, buf.length - pad).toString("utf8").replace(/\0+$/, "");
 }
