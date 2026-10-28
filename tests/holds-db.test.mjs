@@ -1,7 +1,8 @@
-// DB integration tests for expired-hold release (pg_cron) and restock-after-cancel
-// (supabase/migrations/20261029000002_*). Runs against the real site_emily schema with fixed test ids
+// DB integration tests for expired-hold release (pg_cron), restock-after-cancel
+// (supabase/migrations/20261029000002_*) and failed-payment stock release (20261029000003_*). Runs against the real site_emily schema with fixed test ids
 // (product 990000001, orders 990000101..990000199), deletes everything afterwards and checks that every
-// real product / variation stock equals the snapshot taken before. Skipped without credentials:
+// real product / variation stock + total_sales, the order count and the max order id equal the snapshot
+// taken before. Skipped without credentials:
 //   source ~/.config/gather-migrate/env && npm test
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -22,19 +23,24 @@ async function stockSnapshot() {
   const all = async (table) => {
     const out = [];
     for (let from = 0; ; from += 1000) {
-      const r = await db.from(table).select("id,stock_quantity,stock_status").neq("id", PID).order("id").range(from, from + 999);
+      const r = await db.from(table).select(table === "products" ? "id,stock_quantity,stock_status,total_sales" : "id,stock_quantity,stock_status").neq("id", PID).order("id").range(from, from + 999);
       assert.ifError(r.error);
       out.push(...r.data);
       if (r.data.length < 1000) break;
     }
     return out;
   };
-  return { products: await all("products"), variations: (await all("product_variations")).filter((v) => v.id !== PID) };
+  const cnt = await db.from("orders").select("id", { count: "exact", head: true });
+  assert.ifError(cnt.error);
+  const max = await db.from("orders").select("id").order("id", { ascending: false }).limit(1);
+  assert.ifError(max.error);
+  return { products: await all("products"), variations: (await all("product_variations")).filter((v) => v.id !== PID), orders: { count: cnt.count, maxId: max.data[0]?.id ?? null } };
 }
 async function cleanup() {
   await db.from("orders").delete().in("id", ORDER_IDS); // order_items / order_notes cascade
   await db.from("audit_log").delete().eq("entity_type", "order").in("entity_id", ORDER_IDS.map(String));
   await db.from("products").delete().eq("id", PID);
+  await db.from("checkout_attempts").delete().like("email", "t-9900001%@example.invalid");
 }
 async function setStock(q) {
   const r = await db.from("products").update({ stock_quantity: q, stock_status: q > 0 ? "instock" : "outofstock" }).eq("id", PID);
@@ -80,7 +86,7 @@ after(async () => {
   const left = await db.from("orders").select("id").in("id", ORDER_IDS);
   assert.equal(left.data.length, 0);
   assert.deepEqual(await stockSnapshot(), snapshot, "real stock changed during the test");
-  console.log(`# stock snapshot unchanged: ${snapshot.products.length} products, ${snapshot.variations.length} variations`);
+  console.log(`# snapshot unchanged: ${snapshot.products.length} products (stock+total_sales), ${snapshot.variations.length} variations, ${snapshot.orders.count} orders, max id ${snapshot.orders.maxId}`);
 });
 
 test("2: expired 信用卡一次付清 hold is cancelled and its stock restored; fresh hold kept", { skip }, async () => {
@@ -135,16 +141,116 @@ test("4: late paid notify on an expired (cancelled) hold -> processing reduces a
   assert.ok((await notes(id)).some((n) => n.startsWith("庫存已扣減為負數")));
 });
 
-test("4: failed -> processing does not double-reduce (stock kept while failed); no note when stock stays >= 0", { skip }, async () => {
+const pay = (id, from, to, trade = "") => rpc("payment_transition", { p_order_id: id, p_from: from, p_to: to, p_trade_no: trade, p_meta: {}, p_note: null, p_actor: "newebpay" });
+const adminStatus = async (id, to) => {
+  // = commerce.updateOrderStatus: update the row, then the status hook
+  const r = await db.from("orders").update({ status: to }).eq("id", id);
+  assert.ifError(r.error);
+  await rpc("order_status_effects", { p_order_id: id, p_status: to });
+};
+const reduced = async (id) => (await db.from("orders").select("meta").eq("id", id).single()).data.meta.order_stock_reduced;
+
+test("5: declined card (pending -> failed) releases the checkout hold exactly once", { skip }, async () => {
   await setStock(5);
   const id = await order(5, {});
   await rpc("order_reduce_stock", { p_order_id: id }); // 信用卡一次付清 reduces at checkout
   assert.equal((await stock()).stock_quantity, 3);
-  assert.equal(await rpc("payment_transition", { p_order_id: id, p_from: "pending", p_to: "failed", p_trade_no: "", p_meta: {}, p_note: null, p_actor: "newebpay" }), "ok");
+  assert.equal(await pay(id, "pending", "failed"), "ok");
+  assert.equal((await stock()).stock_quantity, 5);
+  assert.equal(await reduced(id), "no");
+  // repeated failure hooks / admin re-saving failed never restore twice
+  await rpc("order_status_effects", { p_order_id: id, p_status: "failed" });
+  assert.equal(await rpc("order_restore_stock", { p_order_id: id }), false);
+  assert.equal((await stock()).stock_quantity, 5);
+});
+
+test("5: failed -> paid notify (processing) reduces again once; completed does not reduce twice", { skip }, async () => {
+  await setStock(5);
+  const id = await order(6, {});
+  await rpc("order_reduce_stock", { p_order_id: id });
+  await pay(id, "pending", "failed");
+  assert.equal((await stock()).stock_quantity, 5);
+  assert.equal(await pay(id, "failed", "processing", "T2"), "ok");
   assert.equal((await stock()).stock_quantity, 3);
-  assert.equal(await rpc("payment_transition", { p_order_id: id, p_from: "failed", p_to: "processing", p_trade_no: "T2", p_meta: {}, p_note: null, p_actor: "newebpay" }), "ok");
+  assert.equal(await reduced(id), "yes");
+  await adminStatus(id, "completed"); // processing -> completed
   assert.equal((await stock()).stock_quantity, 3);
   assert.ok(!(await notes(id)).some((n) => n.startsWith("庫存已扣減為負數")));
+});
+
+test("5: failed -> processing set by admin reduces again once", { skip }, async () => {
+  await setStock(5);
+  const id = await order(7, {});
+  await rpc("order_reduce_stock", { p_order_id: id });
+  await pay(id, "pending", "failed");
+  await adminStatus(id, "processing");
+  assert.equal((await stock()).stock_quantity, 3);
+  await adminStatus(id, "processing");
+  assert.equal((await stock()).stock_quantity, 3);
+});
+
+test("5: failed online orders count toward the 3-unpaid cap per IP and per e-mail", { skip }, async () => {
+  const ip = "198.51.100.77";
+  const email = "t-990000108@example.invalid";
+  for (const n of [8, 9, 10]) await order(n, { status: "failed", customer_ip: ip, billing_email: n === 8 ? email : `t-${OID(n)}@example.invalid` });
+  const byIp = await rpc("checkout_guard", { p_ip: ip, p_email: "t-990000111@example.invalid", p_online: true, p_methods: ONLINE_METHODS, p_hold_minutes: HOLD_STOCK_MINUTES });
+  assert.equal(byIp, "too_many_unpaid");
+  // e-mail based: 1 failed (above) + 1 pending + 1 failed from other IPs with the same e-mail -> cap
+  await order(11, { status: "pending", customer_ip: "198.51.100.78", billing_email: email });
+  await order(12, { status: "failed", customer_ip: "198.51.100.79", billing_email: email });
+  const byEmail = await rpc("checkout_guard", { p_ip: "198.51.100.80", p_email: email.toUpperCase(), p_online: true, p_methods: ONLINE_METHODS, p_hold_minutes: HOLD_STOCK_MINUTES });
+  assert.equal(byEmail, "too_many_unpaid");
+  // offline checkout still allowed; failed orders older than the window no longer count
+  assert.equal(await rpc("checkout_guard", { p_ip: ip, p_email: "t-990000112@example.invalid", p_online: false, p_methods: ONLINE_METHODS, p_hold_minutes: HOLD_STOCK_MINUTES }), "ok");
+  await db.from("orders").update({ date_created: new Date(Date.now() - (HOLD_STOCK_MINUTES + 1) * 60_000).toISOString() }).in("id", [OID(9), OID(10)]);
+  assert.equal(await rpc("checkout_guard", { p_ip: ip, p_email: "t-990000113@example.invalid", p_online: true, p_methods: ONLINE_METHODS, p_hold_minutes: HOLD_STOCK_MINUTES }), "ok");
+});
+
+test("6: cancelled -> on-hold -> processing reduces exactly once (decision = currently reduced + new status)", { skip }, async () => {
+  await setStock(5);
+  const id = await order(13, { status: "processing", payment_method: "bacs" });
+  await rpc("order_status_effects", { p_order_id: id, p_status: "processing" });
+  assert.equal((await stock()).stock_quantity, 3);
+  await adminStatus(id, "cancelled");
+  assert.equal((await stock()).stock_quantity, 5);
+  await adminStatus(id, "on-hold");
+  assert.equal((await stock()).stock_quantity, 3);
+  await adminStatus(id, "processing");
+  assert.equal((await stock()).stock_quantity, 3);
+  await adminStatus(id, "completed");
+  assert.equal((await stock()).stock_quantity, 3);
+});
+
+test("6: failed -> on-hold -> processing and pending -> on-hold -> processing reduce exactly once", { skip }, async () => {
+  await setStock(5);
+  const a = await order(14, {});
+  await rpc("order_reduce_stock", { p_order_id: a });
+  await pay(a, "pending", "failed");
+  await adminStatus(a, "on-hold");
+  await adminStatus(a, "processing");
+  assert.equal((await stock()).stock_quantity, 3);
+  const b = await order(15, { payment_method: "newebpay" }); // non-RY gateway: nothing reduced while pending
+  await adminStatus(b, "on-hold");
+  await adminStatus(b, "processing");
+  assert.equal((await stock()).stock_quantity, 1);
+});
+
+test("6: refunded -> processing does not reduce again (refund keeps stock reduced, as WooCommerce)", { skip }, async () => {
+  await setStock(5);
+  const id = await order(16, { status: "processing", payment_method: "cod" });
+  await rpc("order_status_effects", { p_order_id: id, p_status: "processing" });
+  assert.equal((await stock()).stock_quantity, 3);
+  await adminStatus(id, "refunded");
+  assert.equal((await stock()).stock_quantity, 3);
+  await adminStatus(id, "processing");
+  assert.equal((await stock()).stock_quantity, 3);
+  // refunded -> cancelled -> on-hold -> processing: restored once, reduced once
+  await adminStatus(id, "refunded");
+  await adminStatus(id, "cancelled");
+  assert.equal((await stock()).stock_quantity, 5);
+  await adminStatus(id, "on-hold");
+  await adminStatus(id, "processing");
+  assert.equal((await stock()).stock_quantity, 3);
 });
 
 test("2: pg_cron job site_emily_expire_holds exists, every 5 min, runs the expiry function", { skip: skip || (!process.env.SUPABASE_ACCESS_TOKEN && "SUPABASE_ACCESS_TOKEN not set") }, async () => {

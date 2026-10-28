@@ -64,7 +64,8 @@ export async function updateOrderStatus(actor: Actor, id: number, status: string
   if ((status === "processing" || status === "completed") && !before.date_paid) row.date_paid = now;
   if (status === "completed") row.date_completed = now;
   must(await db().from("orders").update(row).eq("id", id), "orders");
-  // WooCommerce stock hooks (reduce on processing/completed/on-hold, restore on cancelled/pending); idempotent.
+  // Stock hooks (reduce on processing/completed/on-hold, restore on cancelled/pending/failed); idempotent via
+  // meta.order_stock_reduced, so any path (e.g. cancelled -> on-hold -> processing) reduces exactly once.
   if (before.status !== status) must(await db().rpc("order_status_effects", { p_order_id: id, p_status: status }), "order_status_effects");
   const text = `訂單狀態已從 ${ORDER_STATUSES[before.status] ?? before.status} 變更為 ${ORDER_STATUSES[status]}。${note ? " " + note : ""}`;
   await db().from("order_notes").insert({ order_id: id, content: text, is_customer_note: false, added_by: actor.label });
