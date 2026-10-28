@@ -1,5 +1,6 @@
 import { handleNotify } from "@/lib/newebpay/core";
-import { clientIp, newebpayConfig, notifyDeps } from "@/lib/newebpay";
+import { db } from "@/lib/db";
+import { clientIp, newebpayConfig, newebpayConfigIssue, notifyDeps } from "@/lib/newebpay";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +11,16 @@ export const dynamic = "force-dynamic";
  */
 export async function POST(req: Request) {
   const cfg = newebpayConfig();
-  if (!cfg) return new Response("newebpay disabled", { status: 503 });
+  if (!cfg) {
+    const issue = newebpayConfigIssue();
+    if (issue) {
+      // production deployment with NEWEBPAY_ENV=test: never mark anything paid; leave a trace for the admin
+      const ip = clientIp(req);
+      await db().from("payment_events").insert({ gateway: "newebpay", kind: "notify", outcome: `rejected:${issue}`, info: {}, ip });
+      await db().from("audit_log").insert({ actor: "newebpay", source: "system", action: "payment.notify_rejected", entity_type: "order", entity_id: null, after: { outcome: `rejected:${issue}` }, ip });
+    }
+    return new Response("newebpay disabled", { status: 503 });
+  }
   let body: Record<string, string>;
   try {
     const fd = await req.formData();

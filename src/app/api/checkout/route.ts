@@ -4,6 +4,7 @@ import { clearCart, viewCart } from "@/lib/cart";
 import { db, userFromToken } from "@/lib/db";
 import { HOLD_STOCK_MINUTES, ONLINE_METHODS, availableGateways } from "@/lib/payments";
 import { cancelUnpaidOrders, clientIp, newebpayEnabled } from "@/lib/newebpay";
+import { guardVerdict, stockProblems, type StockRow } from "@/lib/checkout-policy";
 
 export const dynamic = "force-dynamic";
 
@@ -54,27 +55,36 @@ export async function POST(req: Request) {
   const gw = availableGateways(newebpayEnabled()).find((g) => g.id === pm);
   if (!gw) errors.push("請選擇付款方式。");
   if (!body?.terms_ok && body?.terms_required) errors.push("請詳閱並同意網站條款。");
+  // release expired unpaid 藍新 holds first, so the stock check below sees their stock again
+  await cancelUnpaidOrders();
   const cart = await viewCart();
   if (!cart.items.length) errors.push("購物車是空的，無法結帳。");
   if (errors.length || !gw) return NextResponse.json({ error: errors.join("\n"), errors }, { status: 422 });
-  await cancelUnpaidOrders();
+
+  // stock check against fresh rows (product list is memoised for 1 min)
+  const pids = [...new Set(cart.items.map((i) => i.product_id))];
+  const vids = [...new Set(cart.items.map((i) => i.variation_id).filter((v): v is number => !!v))];
+  const cols = "id,manage_stock,stock_quantity,stock_status,backorders";
+  const [ps, vs] = await Promise.all([
+    db().from("products").select(cols).in("id", pids).eq("status", "publish"),
+    vids.length ? db().from("product_variations").select(cols).in("id", vids).eq("status", "publish") : Promise.resolve({ data: [], error: null }),
+  ]);
+  if (ps.error || vs.error) return NextResponse.json({ error: "目前無法確認庫存，請稍後再試。" }, { status: 503 });
+  const pRow = new Map(((ps.data ?? []) as (StockRow & { id: number })[]).map((r) => [r.id, r]));
+  const vRow = new Map(((vs.data ?? []) as (StockRow & { id: number })[]).map((r) => [r.id, r]));
+  const stockErrors = stockProblems(
+    cart.items.map((i) => ({ name: i.name, quantity: i.quantity, product_id: i.product_id, variation_id: i.variation_id, product: pRow.get(i.product_id) ?? null, variation: i.variation_id ? vRow.get(i.variation_id) ?? null : null })),
+  );
+  if (stockErrors.length) return NextResponse.json({ error: stockErrors.join("\n"), errors: stockErrors }, { status: 409 });
 
   // Anti stock-locking: checkouts reduce stock immediately, so cap checkout rate per IP / e-mail and the
   // number of unpaid 藍新 orders one visitor can hold (counted in the DB, serialised per IP / e-mail).
+  // If the guard itself fails, only online methods are refused; offline methods still go through.
   const ip = clientIp(req);
   const guard = await db().rpc("checkout_guard", { p_ip: ip, p_email: f.billing_email, p_online: gw.online, p_methods: ONLINE_METHODS, p_hold_minutes: HOLD_STOCK_MINUTES });
-  if (guard.error) {
-    console.error("[checkout] guard failed", guard.error.message);
-    return NextResponse.json({ error: "目前無法建立訂單，請稍後再試。" }, { status: 503 });
-  }
-  if (guard.data === "too_many_unpaid") {
-    const msg = "您有多筆尚未完成付款的訂單。請先完成付款，或於 60 分鐘後未付款訂單自動取消後再下單。";
-    return NextResponse.json({ error: msg, errors: [msg] }, { status: 429 });
-  }
-  if (guard.data !== "ok") {
-    const msg = "結帳次數過於頻繁，請稍候幾分鐘後再試。";
-    return NextResponse.json({ error: msg, errors: [msg] }, { status: 429 });
-  }
+  if (guard.error) console.error("[checkout] guard failed", guard.error.message, gw.online ? "-> online method refused" : "-> offline method allowed");
+  const verdict = guardVerdict(guard, gw.online);
+  if (!verdict.proceed) return NextResponse.json({ error: verdict.message, errors: [verdict.message] }, { status: verdict.http });
 
   // optional signed-in customer
   const user = await userFromToken(typeof body?.access_token === "string" ? body.access_token : null);

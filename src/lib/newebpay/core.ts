@@ -10,6 +10,31 @@ export const MPG_ENDPOINT = {
   production: "https://core.newebpay.com/MPG/mpg_gateway",
 } as const;
 
+export type NewebpayEnv = "test" | "production";
+export type NewebpayConfig = NewebpayKeys & { env: NewebpayEnv; endpoint: string };
+/** Why 藍新 is switched off although keys are present (shown in the admin panel). */
+export type NewebpayConfigIssue = "test_env_in_production";
+
+/**
+ * Reads 藍新 settings from an env object (pure; lib/newebpay/index.ts passes process.env).
+ * Missing/partial/malformed keys => config null, issue null (藍新 simply hidden).
+ * A Vercel production deployment (VERCEL_ENV=production) never runs 藍新 in test mode: with
+ * NEWEBPAY_ENV=test the config is refused (null) and issue = 'test_env_in_production', so checkout
+ * hides 藍新, /api/newebpay/pay creates no payment and NotifyURL marks nothing paid.
+ * Test keys belong in the Vercel *Preview* environment only.
+ */
+export function resolveNewebpayConfig(env: Record<string, string | undefined>): { config: NewebpayConfig | null; issue: NewebpayConfigIssue | null } {
+  const merchantId = env.NEWEBPAY_MERCHANT_ID?.trim();
+  const hashKey = env.NEWEBPAY_HASH_KEY?.trim();
+  const hashIv = env.NEWEBPAY_HASH_IV?.trim();
+  const e = env.NEWEBPAY_ENV?.trim();
+  if (env.VERCEL_ENV?.trim() === "production" && e === "test") return { config: null, issue: "test_env_in_production" };
+  if (!merchantId || !hashKey || !hashIv) return { config: null, issue: null };
+  if (hashKey.length !== 32 || hashIv.length !== 16) return { config: null, issue: null }; // AES-256 key / 128-bit IV
+  if (e !== "test" && e !== "production") return { config: null, issue: null };
+  return { config: { merchantId, hashKey, hashIv, env: e, endpoint: MPG_ENDPOINT[e] }, issue: null };
+}
+
 /** PKCS7 block size used by 藍新's official PHP sample (addpadding pads to 32 bytes, so pad is 1..32). */
 export const PAD_BLOCK = 32;
 

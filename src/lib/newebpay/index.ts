@@ -1,18 +1,26 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { HOLD_STOCK_MINUTES, ONLINE_METHODS } from "@/lib/payments";
-import { MPG_ENDPOINT, type NewebpayKeys, type NotifyDeps, type OrderState } from "./core";
+import { resolveNewebpayConfig, type NewebpayConfig, type NewebpayConfigIssue, type NewebpayKeys, type NotifyDeps, type OrderState } from "./core";
 
-/** Keys come only from env. Missing/partial keys => 藍新 is disabled (checkout hides it). */
-export function newebpayConfig(): (NewebpayKeys & { env: "test" | "production"; endpoint: string }) | null {
-  const merchantId = process.env.NEWEBPAY_MERCHANT_ID?.trim();
-  const hashKey = process.env.NEWEBPAY_HASH_KEY?.trim();
-  const hashIv = process.env.NEWEBPAY_HASH_IV?.trim();
-  const e = process.env.NEWEBPAY_ENV?.trim();
-  if (!merchantId || !hashKey || !hashIv) return null;
-  if (hashKey.length !== 32 || hashIv.length !== 16) return null; // AES-256 key / 128-bit IV
-  if (e !== "test" && e !== "production") return null;
-  return { merchantId, hashKey, hashIv, env: e, endpoint: MPG_ENDPOINT[e] };
+let warned = false;
+
+/**
+ * Keys come only from env. Missing/partial keys => 藍新 is disabled (checkout hides it).
+ * On a Vercel production deployment NEWEBPAY_ENV=test is refused (see resolveNewebpayConfig).
+ */
+export function newebpayConfig(): NewebpayConfig | null {
+  const { config, issue } = resolveNewebpayConfig(process.env);
+  if (issue && !warned) {
+    warned = true; // once per server instance
+    console.error(`[newebpay] DISABLED: ${issue} — NEWEBPAY_ENV=test is not allowed when VERCEL_ENV=production; set test keys in the Preview environment only.`);
+  }
+  return config;
+}
+
+/** Non-null when 藍新 keys are present but refused (admin panel warning). */
+export function newebpayConfigIssue(): NewebpayConfigIssue | null {
+  return resolveNewebpayConfig(process.env).issue;
 }
 
 export function newebpayEnabled(): boolean {

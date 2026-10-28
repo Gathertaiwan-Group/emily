@@ -2,6 +2,7 @@ import "server-only";
 import { createHash, randomBytes } from "crypto";
 import { cookies } from "next/headers";
 import { db } from "./db";
+import { cancelUnpaidOrders } from "./newebpay";
 import { urlAtLeast } from "./img";
 import { activePrice, getAllProducts, getQtyRules, mediaByIds, rulesForProduct, unitPriceForQty, type ProductFull, type Variation } from "./data";
 
@@ -68,6 +69,16 @@ export async function variationById(id: number): Promise<Variation | null> {
   return (r.data as Variation) ?? null;
 }
 
+/**
+ * Before any stock check: release expired unpaid 藍新 holds (their stock comes back), then re-read the
+ * product's stock fields fresh — getAllProducts() is memoised for a minute.
+ */
+async function withFreshStock(p: ProductFull): Promise<ProductFull> {
+  await cancelUnpaidOrders();
+  const r = await db().from("products").select("manage_stock,stock_quantity,stock_status,backorders").eq("id", p.id).maybeSingle();
+  return r.data ? ({ ...p, ...r.data } as ProductFull) : p;
+}
+
 function stockOk(p: ProductFull, v: Variation | null, qty: number): string | null {
   const status = (v?.stock_status ?? p.stock_status) as string;
   if (status === "outofstock") return "此商品目前缺貨。";
@@ -80,8 +91,9 @@ function stockOk(p: ProductFull, v: Variation | null, qty: number): string | nul
 
 export async function addToCart(productId: number, qty: number, variationId: number | null, variation: Record<string, string>) {
   const products = await getAllProducts();
-  const p = products.find((x) => x.id === productId);
-  if (!p || !p.purchasable) return { error: "找不到此商品或此商品無法購買。" };
+  const found = products.find((x) => x.id === productId);
+  if (!found || !found.purchasable) return { error: "找不到此商品或此商品無法購買。" };
+  const p = await withFreshStock(found);
   if (p.type === "variable" && !variationId) return { error: "請選擇商品選項。" };
   const v = variationId ? await variationById(variationId) : null;
   if (variationId && (!v || v.product_id !== p.id)) return { error: "商品選項無效。" };
@@ -111,8 +123,9 @@ export async function setQty(itemId: number, qty: number) {
   }
   const it = await db().from("cart_items").select("product_id,variation_id").eq("id", itemId).eq("cart_id", cart.id).maybeSingle();
   if (!it.data) return { error: "找不到購物車項目。" };
-  const p = (await getAllProducts()).find((x) => x.id === it.data!.product_id);
-  if (!p) return { error: "商品已不存在。" };
+  const found = (await getAllProducts()).find((x) => x.id === it.data!.product_id);
+  if (!found) return { error: "商品已不存在。" };
+  const p = await withFreshStock(found);
   const v = it.data.variation_id ? await variationById(it.data.variation_id) : null;
   const err = stockOk(p, v, p.sold_individually ? 1 : qty);
   if (err) return { error: err };
